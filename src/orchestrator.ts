@@ -1,23 +1,28 @@
 import ora from 'ora';
 import path from 'path';
 import fs from 'fs-extra';
-import { AuditConfig, AuditReport, VulnerabilityFinding } from './types';
+import { AuditConfig, AuditReport, VulnerabilityFinding, AggregatedAnalyzerResult } from './types';
 import { SourceFetcher } from './fetcher';
-import { SlitherAnalyzer } from './slither';
+import { SlitherAnalyzer } from './analyzers/slither';
+import { MythrilAnalyzer } from './analyzers/mythril';
+import { BaseAnalyzer } from './analyzers/base';
 import { LLMAuditor } from './auditor';
 import { ReportGenerator } from './reporter';
 import { InteractiveCLI } from './cli';
 
 export class AuditOrchestrator {
   private fetcher: SourceFetcher;
-  private slitherAnalyzer: SlitherAnalyzer;
+  private analyzers: BaseAnalyzer[];
   private llmAuditor: LLMAuditor;
   private reportGenerator: ReportGenerator;
   private cli: InteractiveCLI;
 
   constructor() {
     this.fetcher = new SourceFetcher();
-    this.slitherAnalyzer = new SlitherAnalyzer();
+    this.analyzers = [
+      new SlitherAnalyzer(),
+      new MythrilAnalyzer()
+    ];
     this.llmAuditor = new LLMAuditor();
     this.reportGenerator = new ReportGenerator();
     this.cli = new InteractiveCLI();
@@ -42,19 +47,9 @@ export class AuditOrchestrator {
 
       this.cli.displayInfo(`Found ${solidityFiles.length} Solidity file(s) to audit`);
 
-      spinner = ora('Running Slither analysis...').start();
-      const slitherResult = await this.slitherAnalyzer.analyze(targetPath);
-
-      if (!slitherResult.success) {
-        spinner.warn('Slither analysis completed with warnings');
-        if (slitherResult.errors && slitherResult.errors.length > 0) {
-          this.cli.displayWarning(`Slither errors: ${slitherResult.errors.join(', ')}`);
-        }
-      } else {
-        spinner.succeed(
-          `Slither analysis completed - found ${slitherResult.detectors.length} potential issues`
-        );
-      }
+      spinner = ora('Running static analysis tools...').start();
+      const aggregatedResult = await this.runAllAnalyzers(targetPath);
+      this.displayAnalyzerResults(aggregatedResult, spinner);
 
       const aiProvider = this.llmAuditor.getProviderName();
       spinner = ora(`Performing AI-powered security analysis using ${aiProvider}...`).start();
@@ -62,28 +57,43 @@ export class AuditOrchestrator {
 
       for (const solidityFile of solidityFiles) {
         const contractCode = await fs.readFile(solidityFile, 'utf-8');
+        const fileName = path.basename(solidityFile);
         const findings = await this.llmAuditor.auditContract(
           contractCode,
-          slitherResult,
-          config.vulnerabilityChecks
+          aggregatedResult,
+          config.vulnerabilityChecks,
+          fileName
         );
+
+        // Add file information to each finding
+        findings.forEach(finding => {
+          finding.affectedFiles = [fileName];
+          // Ensure location includes file name
+          if (!finding.location.includes(fileName)) {
+            finding.location = `${fileName}: ${finding.location}`;
+          }
+        });
+
         allFindings.push(...findings);
       }
 
-      spinner.succeed(`AI analysis (${aiProvider}) completed - found ${allFindings.length} findings`);
+      // Merge similar findings
+      const mergedFindings = this.mergeFindings(allFindings);
+
+      spinner.succeed(`AI analysis (${aiProvider}) completed - found ${mergedFindings.length} unique findings`);
 
       spinner = ora('Generating comprehensive analysis...').start();
       const comprehensiveAnalysis = solidityFiles.length === 1
-        ? await this.llmAuditor.performComprehensiveAnalysis(solidityFiles[0], slitherResult)
-        : await this.llmAuditor.generateProjectSummary(allFindings, slitherResult);
+        ? await this.llmAuditor.performComprehensiveAnalysis(solidityFiles[0], aggregatedResult)
+        : await this.llmAuditor.generateProjectSummary(mergedFindings, aggregatedResult);
       spinner.succeed('Comprehensive analysis completed');
 
       const report: AuditReport = {
         projectName: path.basename(config.sourcePath),
         auditDate: new Date().toISOString(),
-        summary: this.calculateSummary(allFindings),
-        findings: allFindings,
-        slitherAnalysis: slitherResult,
+        summary: this.calculateSummary(mergedFindings),
+        findings: mergedFindings,
+        staticAnalysis: aggregatedResult,
         llmAnalysis: comprehensiveAnalysis
       };
 
@@ -122,11 +132,160 @@ export class AuditOrchestrator {
     };
   }
 
+  /**
+   * Merges similar findings to reduce report redundancy
+   * Groups findings by type, severity, and similar titles
+   */
+  private mergeFindings(findings: VulnerabilityFinding[]): VulnerabilityFinding[] {
+    if (findings.length === 0) return [];
+
+    const merged: VulnerabilityFinding[] = [];
+    const processed = new Set<number>();
+
+    for (let i = 0; i < findings.length; i++) {
+      if (processed.has(i)) continue;
+
+      const current = findings[i];
+      const similar: VulnerabilityFinding[] = [current];
+
+      // Find similar findings
+      for (let j = i + 1; j < findings.length; j++) {
+        if (processed.has(j)) continue;
+
+        const candidate = findings[j];
+        if (this.areSimilarFindings(current, candidate)) {
+          similar.push(candidate);
+          processed.add(j);
+        }
+      }
+
+      // Merge similar findings
+      if (similar.length > 1) {
+        const mergedFinding = this.mergeSimilarFindings(similar);
+        merged.push(mergedFinding);
+      } else {
+        merged.push(current);
+      }
+
+      processed.add(i);
+    }
+
+    return merged;
+  }
+
+  /**
+   * Checks if two findings are similar enough to merge
+   */
+  private areSimilarFindings(a: VulnerabilityFinding, b: VulnerabilityFinding): boolean {
+    // Must have same type and severity
+    if (a.type !== b.type || a.severity !== b.severity) {
+      return false;
+    }
+
+    // Check title similarity (simple approach: same or very similar)
+    const titleA = a.title.toLowerCase().trim();
+    const titleB = b.title.toLowerCase().trim();
+
+    // Exact match
+    if (titleA === titleB) {
+      return true;
+    }
+
+    // Check if titles are similar (contain same keywords)
+    const wordsA = new Set(titleA.split(/\s+/).filter(w => w.length > 3));
+    const wordsB = new Set(titleB.split(/\s+/).filter(w => w.length > 3));
+
+    // Calculate similarity (Jaccard index)
+    const intersection = new Set([...wordsA].filter(x => wordsB.has(x)));
+    const union = new Set([...wordsA, ...wordsB]);
+
+    const similarity = intersection.size / union.size;
+
+    // Consider similar if >70% overlap in keywords
+    return similarity > 0.7;
+  }
+
+  /**
+   * Merges multiple similar findings into one
+   */
+  private mergeSimilarFindings(findings: VulnerabilityFinding[]): VulnerabilityFinding {
+    const base = findings[0];
+
+    // Collect all locations and files
+    const allLocations: string[] = [];
+    const allFiles = new Set<string>();
+
+    findings.forEach(f => {
+      allLocations.push(f.location);
+      if (f.affectedFiles) {
+        f.affectedFiles.forEach(file => allFiles.add(file));
+      }
+    });
+
+    return {
+      ...base,
+      locations: allLocations,
+      affectedFiles: Array.from(allFiles),
+      occurrences: findings.length,
+      // Update description to mention multiple occurrences if needed
+      description: findings.length > 1
+        ? `${base.description}\n\n**Note:** This issue was found in ${findings.length} location(s).`
+        : base.description
+    };
+  }
+
   private async cleanup(): Promise<void> {
     try {
       await this.fetcher.cleanup();
     } catch (error) {
       // Ignore cleanup errors
+    }
+  }
+
+  private async runAllAnalyzers(targetPath: string): Promise<AggregatedAnalyzerResult> {
+    // Run all analyzers in parallel with Promise.all
+    const results = await Promise.all(
+      this.analyzers.map(analyzer =>
+        analyzer.analyze(targetPath).catch(error => ({
+          tool: analyzer.getToolName().toLowerCase() as any,
+          success: false,
+          errors: [error.message],
+          detectors: [],
+          supplementaryData: {}
+        }))
+      )
+    );
+
+    return {
+      results,
+      allDetectors: results.flatMap(r => r.detectors),
+      successCount: results.filter(r => r.success).length,
+      totalTools: this.analyzers.length,
+      errors: results.flatMap(r => r.errors)
+    };
+  }
+
+  private displayAnalyzerResults(aggregated: AggregatedAnalyzerResult, spinner: any): void {
+    const messages = aggregated.results.map(result => {
+      const toolName = result.tool.charAt(0).toUpperCase() + result.tool.slice(1);
+      return result.success
+        ? `${toolName}: ${result.detectors.length} issue(s)`
+        : `${toolName}: Failed`;
+    });
+
+    if (aggregated.successCount === aggregated.totalTools) {
+      spinner.succeed(`Static analysis completed - ${messages.join(' | ')}`);
+    } else if (aggregated.successCount > 0) {
+      spinner.warn(`Static analysis partially completed - ${messages.join(' | ')}`);
+    } else {
+      spinner.fail(`Static analysis failed`);
+    }
+
+    // Display individual errors if any
+    if (aggregated.errors.length > 0) {
+      aggregated.errors.forEach(error => {
+        this.cli.displayWarning(error);
+      });
     }
   }
 }

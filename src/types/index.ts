@@ -55,10 +55,55 @@ export interface VulnerabilityFinding {
   severity: 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
   title: string;
   description: string;
-  location: string;
+  location: string;  // Primary location for backward compatibility
+  locations?: string[];  // Multiple locations if finding appears in multiple places
+  affectedFiles?: string[];  // List of affected files
   recommendation: string;
   evidence?: string;
+  occurrences?: number;  // Number of times this issue was found
 }
+
+// ===== New Analyzer Abstraction Types =====
+
+// Tool identifier
+export type AnalyzerToolType = 'slither' | 'mythril';
+
+// Unified severity levels
+export type AnalyzerSeverity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Informational';
+
+// Unified detector finding
+export interface AnalyzerDetector {
+  id: string;                    // check name or swcID
+  title: string;                 // human-readable title
+  severity: AnalyzerSeverity;    // normalized severity
+  description: string;           // detailed description
+  location: string;              // where the issue is
+  source: AnalyzerToolType;      // which tool found this
+  rawData: any;                  // original detector object
+}
+
+// Unified analyzer result
+export interface AnalyzerResult {
+  tool: AnalyzerToolType;
+  success: boolean;
+  errors: string[];
+  detectors: AnalyzerDetector[];
+  supplementaryData?: {
+    printers?: any;      // Slither-specific
+    irCode?: string;     // Slither-specific
+  };
+}
+
+// Multi-tool aggregated result
+export interface AggregatedAnalyzerResult {
+  results: AnalyzerResult[];
+  allDetectors: AnalyzerDetector[];
+  successCount: number;
+  totalTools: number;
+  errors: string[];
+}
+
+// ===== End New Types =====
 
 export interface AuditReport {
   projectName: string;
@@ -72,6 +117,7 @@ export interface AuditReport {
     infoIssues: number;
   };
   findings: VulnerabilityFinding[];
-  slitherAnalysis: SlitherResult;
+  staticAnalysis: AggregatedAnalyzerResult;  // Changed from slitherAnalysis
+  slitherAnalysis?: SlitherResult;           // Deprecated, kept for backward compatibility
   llmAnalysis: string;
 }

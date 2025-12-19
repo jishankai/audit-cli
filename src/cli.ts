@@ -124,7 +124,7 @@ export class InteractiveCLI {
   displayWelcome(): void {
     console.log(chalk.cyan('\n' + '='.repeat(60)));
     console.log(chalk.cyan.bold('  Smart Contract Security Audit Tool'));
-    console.log(chalk.cyan('  Powered by Slither + AI Analysis'));
+    console.log(chalk.cyan('  Powered by Multi-Tool Analysis (Slither & Mythril) + AI'));
     console.log(chalk.cyan('='.repeat(60) + '\n'));
   }
 

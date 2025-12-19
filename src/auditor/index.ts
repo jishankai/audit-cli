@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
-import { VulnerabilityType, VulnerabilityFinding, SlitherResult } from '../types';
+import { VulnerabilityType, VulnerabilityFinding, SlitherResult, AggregatedAnalyzerResult } from '../types';
 import fs from 'fs-extra';
 
 type AIProvider = 'anthropic' | 'openai';
@@ -55,18 +55,21 @@ export class LLMAuditor {
 
   async auditContract(
     contractCode: string,
-    slitherResult: SlitherResult,
-    vulnerabilityTypes: VulnerabilityType[]
+    analyzerResults: AggregatedAnalyzerResult,
+    vulnerabilityTypes: VulnerabilityType[],
+    fileName?: string
   ): Promise<VulnerabilityFinding[]> {
     const findings: VulnerabilityFinding[] = [];
 
-    const prompt = this.buildAuditPrompt(contractCode, slitherResult, vulnerabilityTypes);
+    const prompt = this.buildAuditPrompt(contractCode, analyzerResults, vulnerabilityTypes, fileName);
 
     try {
       const analysisText = await this.callAI(prompt, 16000);
       const parsedFindings = this.parseAuditResponse(analysisText, vulnerabilityTypes);
 
-      findings.push(...parsedFindings);
+      // Filter out invalid "no finding" reports
+      const validFindings = parsedFindings.filter(finding => this.isValidFinding(finding));
+      findings.push(...validFindings);
     } catch (error: any) {
       console.error(`Error calling ${this.provider} API:`, error.message);
     }
@@ -76,19 +79,30 @@ export class LLMAuditor {
 
   async generateProjectSummary(
     findings: VulnerabilityFinding[],
-    slitherResult: SlitherResult
+    analyzerResults: AggregatedAnalyzerResult
   ): Promise<string> {
-    const findingsSummary = findings.map(f => 
+    const findingsSummary = findings.map(f =>
       `- [${f.severity}] ${f.type}: ${f.title} (${f.location})`
     ).join('\n');
+
+    const toolsSummary = analyzerResults.results.map(result => {
+      const toolName = result.tool.charAt(0).toUpperCase() + result.tool.slice(1);
+      if (!result.success) {
+        return `${toolName}: Failed`;
+      }
+      return `${toolName}: ${result.detectors.length} issue(s) found`;
+    }).join('\n');
 
     const prompt = `Provide a comprehensive executive summary for a smart contract audit project.
 
 FINDINGS SUMMARY:
 ${findingsSummary || 'No major vulnerabilities found.'}
 
-SLITHER ANALYSIS SUMMARY:
-${JSON.stringify(slitherResult.detectors.length > 0 ? slitherResult.detectors.map(d => ({ check: d.check, impact: d.impact })) : 'No issues found', null, 2)}
+STATIC ANALYSIS TOOLS SUMMARY:
+${toolsSummary}
+
+TOTAL DETECTIONS FROM ALL TOOLS:
+${analyzerResults.allDetectors.length} issue(s)
 
 Provide:
 1. Executive Summary of Security Posture
@@ -143,33 +157,67 @@ Provide:
 
   private buildAuditPrompt(
     contractCode: string,
-    slitherResult: SlitherResult,
-    vulnerabilityTypes: VulnerabilityType[]
+    analyzerResults: AggregatedAnalyzerResult,
+    vulnerabilityTypes: VulnerabilityType[],
+    fileName?: string
   ): string {
-    return `You are a smart contract security auditor. Analyze the following Solidity contract for security vulnerabilities.
+    // Format detectors by tool
+    const detectorsByTool = analyzerResults.results.map(result => {
+      const toolName = result.tool.charAt(0).toUpperCase() + result.tool.slice(1);
 
+      if (!result.success) {
+        return `${toolName} Analysis: Failed`;
+      }
+
+      const detectorList = result.detectors.map(d => ({
+        id: d.id,
+        severity: d.severity,
+        title: d.title,
+        description: d.description,
+        location: d.location
+      }));
+
+      return `${toolName} Analysis:\n${JSON.stringify(detectorList, null, 2)}`;
+    }).join('\n\n');
+
+    // Get IR code from Slither if available
+    const slitherResult = analyzerResults.results.find(r => r.tool === 'slither');
+    const irCode = slitherResult?.supplementaryData?.irCode || 'Not available';
+
+    const fileInfo = fileName ? `\n\nFILE NAME: ${fileName}\n` : '';
+
+    return `You are a smart contract security auditor. Analyze the following Solidity contract for security vulnerabilities.${fileInfo}
 CONTRACT CODE:
 \`\`\`solidity
 ${contractCode}
 \`\`\`
 
-SLITHER ANALYSIS RESULTS:
-${JSON.stringify(slitherResult.detectors, null, 2)}
+STATIC ANALYSIS RESULTS FROM MULTIPLE TOOLS:
+${detectorsByTool}
 
 SLITHER IR/SUMMARY:
-${slitherResult.irCode || 'Not available'}
+${irCode}
 
 VULNERABILITY TYPES TO CHECK:
 ${vulnerabilityTypes.map((v, i) => `${i + 1}. ${v}`).join('\n')}
 
-Please analyze the contract for these specific vulnerability types. For each finding, provide:
+Please analyze the contract for these specific vulnerability types. Consider findings from both Slither and Mythril tools.
+
+CRITICAL INSTRUCTIONS:
+- ONLY report vulnerabilities that ACTUALLY EXIST in the code
+- DO NOT report informational findings about vulnerabilities that are NOT present
+- DO NOT include findings like "No [vulnerability type] detected" or "No action needed"
+- If a vulnerability type is not present in the contract, simply omit it from the results
+- Focus on REAL security issues that need to be addressed
+
+For each ACTUAL vulnerability found, provide:
 1. Vulnerability Type (from the list above)
 2. Severity (Critical/High/Medium/Low/Info)
 3. Title (brief description)
-4. Description (detailed explanation)
-5. Location (line numbers or function names)
-6. Recommendation (how to fix)
-7. Evidence (code snippet if applicable)
+4. Description (detailed explanation of the ACTUAL issue)
+5. Location (MUST include function name and line numbers if available, e.g., "withdraw() function, lines 10-15")
+6. Recommendation (actionable fix for the REAL issue)
+7. Evidence (actual code snippet showing the vulnerability)
 
 Format your response as a JSON array of findings:
 \`\`\`json
@@ -177,8 +225,8 @@ Format your response as a JSON array of findings:
   {
     "type": "Re-Entrancy",
     "severity": "High",
-    "title": "Potential reentrancy vulnerability in withdraw function",
-    "description": "The withdraw function makes an external call before updating the balance...",
+    "title": "Reentrancy vulnerability in withdraw function",
+    "description": "The withdraw function makes an external call before updating the balance, allowing attackers to drain funds...",
     "location": "Line 45-52, withdraw() function",
     "recommendation": "Follow the checks-effects-interactions pattern. Update the balance before making the external call.",
     "evidence": "Code snippet showing the vulnerable pattern"
@@ -186,7 +234,7 @@ Format your response as a JSON array of findings:
 ]
 \`\`\`
 
-Be thorough and specific. If no vulnerabilities are found for a type, don't include it in the results.`;
+If the contract is secure and has no vulnerabilities, return an empty array: []`;
   }
 
   private parseAuditResponse(
@@ -241,9 +289,24 @@ Be thorough and specific. If no vulnerabilities are found for a type, don't incl
 
   async performComprehensiveAnalysis(
     contractPath: string,
-    slitherResult: SlitherResult
+    analyzerResults: AggregatedAnalyzerResult
   ): Promise<string> {
     const contractCode = await fs.readFile(contractPath, 'utf-8');
+
+    // Format analysis results from all tools
+    const toolsSummary = analyzerResults.results.map(result => {
+      const toolName = result.tool.charAt(0).toUpperCase() + result.tool.slice(1);
+
+      if (!result.success) {
+        return `${toolName}: Failed`;
+      }
+
+      return `${toolName} (${result.detectors.length} issues):\n${JSON.stringify(result.detectors.map(d => ({
+        id: d.id,
+        severity: d.severity,
+        title: d.title
+      })), null, 2)}`;
+    }).join('\n\n');
 
     const prompt = `Provide a comprehensive security analysis of this Solidity smart contract:
 
@@ -252,8 +315,11 @@ CONTRACT CODE:
 ${contractCode}
 \`\`\`
 
-SLITHER ANALYSIS:
-${JSON.stringify(slitherResult, null, 2)}
+STATIC ANALYSIS FROM MULTIPLE TOOLS:
+${toolsSummary}
+
+TOTAL ISSUES DETECTED:
+${analyzerResults.allDetectors.length}
 
 Provide:
 1. Overall security assessment
@@ -267,5 +333,51 @@ Provide:
     } catch (error: any) {
       return `Error performing comprehensive analysis: ${error.message}`;
     }
+  }
+
+  /**
+   * Filters out invalid "no finding" reports that state a vulnerability is NOT present
+   */
+  private isValidFinding(finding: VulnerabilityFinding): boolean {
+    const textToCheck = `${finding.title} ${finding.description} ${finding.recommendation}`.toLowerCase();
+
+    // Patterns that indicate this is a "no finding" report
+    const invalidPatterns = [
+      'no action needed',
+      'not vulnerable',
+      'does not contain',
+      'does not use',
+      'does not implement',
+      'is not vulnerable',
+      'are not applicable',
+      'not applicable',
+      'no.*detected',
+      'no.*present',
+      'no.*usage',
+      'no.*found',
+      'automatically reverts',
+      'continue using',
+      'not susceptible'
+    ];
+
+    // Check if the finding matches any invalid pattern
+    for (const pattern of invalidPatterns) {
+      if (new RegExp(pattern, 'i').test(textToCheck)) {
+        return false;
+      }
+    }
+
+    // Additional check: If location is N/A and recommendation says "no action needed"
+    if (finding.location.toLowerCase().includes('n/a') &&
+        finding.recommendation.toLowerCase().includes('no action')) {
+      return false;
+    }
+
+    // Additional check: Title starts with "No [something]"
+    if (/^no\s+\w+/i.test(finding.title.trim())) {
+      return false;
+    }
+
+    return true;
   }
 }

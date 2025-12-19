@@ -87,21 +87,58 @@ export class ReportGenerator {
       });
     }
 
-    sections.push('## Slither Analysis Details');
+    sections.push('## Static Analysis Results');
     sections.push('');
-    if (report.slitherAnalysis.detectors && report.slitherAnalysis.detectors.length > 0) {
-      sections.push('### Detected Issues');
+
+    const staticAnalysis = report.staticAnalysis;
+    sections.push(`**Tools Run:** ${staticAnalysis.totalTools}`);
+    sections.push(`**Successful:** ${staticAnalysis.successCount}`);
+    sections.push(`**Total Issues Found:** ${staticAnalysis.allDetectors.length}`);
+    sections.push('');
+
+    // Display results by tool
+    for (const result of staticAnalysis.results) {
+      const toolName = result.tool.charAt(0).toUpperCase() + result.tool.slice(1);
+
+      sections.push(`### ${toolName} Analysis`);
       sections.push('');
-      report.slitherAnalysis.detectors.forEach((detector, index) => {
-        sections.push(`#### ${index + 1}. ${detector.check}`);
-        sections.push(`- **Impact:** ${detector.impact}`);
-        sections.push(`- **Confidence:** ${detector.confidence}`);
-        sections.push(`- **Description:** ${detector.description}`);
+
+      if (!result.success) {
+        sections.push(`**Status:** ❌ Failed`);
+        sections.push(`**Errors:** ${result.errors.join(', ')}`);
         sections.push('');
-      });
-    } else {
-      sections.push('No issues detected by Slither automated analysis.');
+        continue;
+      }
+
+      sections.push(`**Status:** ✅ Success`);
+      sections.push(`**Issues Found:** ${result.detectors.length}`);
       sections.push('');
+
+      if (result.detectors.length > 0) {
+        // Group by severity
+        const bySeverity = {
+          High: result.detectors.filter(d => d.severity === 'High'),
+          Medium: result.detectors.filter(d => d.severity === 'Medium'),
+          Low: result.detectors.filter(d => d.severity === 'Low'),
+          Informational: result.detectors.filter(d => d.severity === 'Informational')
+        };
+
+        for (const [severity, detectors] of Object.entries(bySeverity)) {
+          if (detectors.length > 0) {
+            sections.push(`#### ${severity} Severity (${detectors.length})`);
+            sections.push('');
+            detectors.forEach((d, i) => {
+              sections.push(`${i + 1}. **${d.title}** (${d.id})`);
+              sections.push(`   - **Location:** ${d.location}`);
+              sections.push(`   - **Description:** ${d.description.substring(0, 300)}${d.description.length > 300 ? '...' : ''}`);
+              sections.push('');
+            });
+          }
+        }
+      } else {
+        sections.push('No issues detected.');
+        sections.push('');
+      }
     }
 
     sections.push('## AI Analysis Summary');
@@ -120,7 +157,7 @@ export class ReportGenerator {
 
     sections.push('---');
     sections.push('');
-    sections.push('*This report was generated using audit-cli with Slither and AI analysis*');
+    sections.push('*This report was generated using audit-cli with multi-tool static analysis (Slither & Mythril) and AI-powered analysis*');
 
     return sections.join('\n');
   }
@@ -132,7 +169,30 @@ export class ReportGenerator {
     lines.push('');
     lines.push(`**Type:** ${finding.type}`);
     lines.push(`**Severity:** ${finding.severity}`);
-    lines.push(`**Location:** ${finding.location}`);
+
+    // Show affected files if available
+    if (finding.affectedFiles && finding.affectedFiles.length > 0) {
+      const fileList = finding.affectedFiles.join(', ');
+      lines.push(`**Affected File(s):** ${fileList}`);
+    }
+
+    // Show occurrences if this is a merged finding
+    if (finding.occurrences && finding.occurrences > 1) {
+      lines.push(`**Occurrences:** ${finding.occurrences}`);
+    }
+
+    lines.push('');
+
+    // Show all locations if there are multiple
+    if (finding.locations && finding.locations.length > 1) {
+      lines.push('**Locations:**');
+      finding.locations.forEach((loc, idx) => {
+        lines.push(`${idx + 1}. ${loc}`);
+      });
+    } else {
+      lines.push(`**Location:** ${finding.location}`);
+    }
+
     lines.push('');
     lines.push('**Description:**');
     lines.push(finding.description);
