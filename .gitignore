@@ -8,6 +8,8 @@ temp/
 coverage/
 .cache/
 package-lock.json
+reports/
+samples/*.dot
 
 # Ignore all .md files except README.md
 *.md

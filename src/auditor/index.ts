@@ -121,7 +121,7 @@ Provide:
     } else if (this.provider === 'openai' && this.openaiClient) {
       const response = await this.openaiClient.chat.completions.create({
         model: this.model,
-        max_tokens: maxTokens,
+        max_completion_tokens: maxTokens,
         messages: [
           {
             role: 'system',
