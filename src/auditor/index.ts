@@ -12,25 +12,45 @@ export class LLMAuditor {
   private model: string;
 
   constructor() {
-    if (process.env.ANTHROPIC_API_KEY) {
+    // Check which provider is specified or default to OpenAI
+    const aiProvider = process.env.AI_PROVIDER?.toLowerCase();
+    const hasAnthropicKey = process.env.ANTHROPIC_API_KEY;
+    const hasOpenAIKey = process.env.OPENAI_API_KEY;
+
+    if (aiProvider === 'anthropic' && hasAnthropicKey) {
       this.provider = 'anthropic';
       this.anthropicClient = new Anthropic({
-        apiKey: process.env.ANTHROPIC_API_KEY
+        apiKey: process.env.ANTHROPIC_API_KEY!
       });
       this.model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
-    } else if (process.env.OPENAI_API_KEY) {
+    } else if ((aiProvider === 'openai' || !aiProvider) && hasOpenAIKey) {
       this.provider = 'openai';
       this.openaiClient = new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY
+        apiKey: process.env.OPENAI_API_KEY!
       });
-      this.model = process.env.OPENAI_MODEL || 'gpt-4o';
+      this.model = process.env.OPENAI_MODEL || 'gpt-4.1';
+    } else if (hasAnthropicKey) {
+      // Fallback to Anthropic if OpenAI preferred but no key
+      this.provider = 'anthropic';
+      this.anthropicClient = new Anthropic({
+        apiKey: process.env.ANTHROPIC_API_KEY!
+      });
+      this.model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514';
+    } else if (hasOpenAIKey) {
+      // Fallback to OpenAI if Anthropic preferred but no key
+      this.provider = 'openai';
+      this.openaiClient = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY!
+      });
+      this.model = process.env.OPENAI_MODEL || 'gpt-4.1';
     } else {
       throw new Error('No API key found. Please set ANTHROPIC_API_KEY or OPENAI_API_KEY');
     }
   }
 
   getProviderName(): string {
-    return this.provider === 'anthropic' ? 'Claude (Anthropic)' : 'GPT-4 (OpenAI)';
+    const providerName = this.provider === 'anthropic' ? 'Claude (Anthropic)' : 'GPT (OpenAI)';
+    return `${providerName} - Model: ${this.model}`;
   }
 
   async auditContract(

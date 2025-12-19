@@ -2,6 +2,7 @@
 
 import { InteractiveCLI } from './cli';
 import { AuditOrchestrator } from './orchestrator';
+import { LLMAuditor } from './auditor';
 
 async function main() {
   const cli = new InteractiveCLI();
@@ -18,8 +19,8 @@ async function main() {
       process.exit(1);
     }
 
-    const aiProvider = process.env.ANTHROPIC_API_KEY ? 'Claude (Anthropic)' : 'GPT-4 (OpenAI)';
-    cli.displayInfo(`Using AI Provider: ${aiProvider}\n`);
+    const auditor = new LLMAuditor();
+    cli.displayInfo(`Using AI: ${auditor.getProviderName()}\n`);
 
     const config = await cli.getAuditConfig();
     const orchestrator = new AuditOrchestrator();

@@ -76,28 +76,44 @@ The CLI will guide you through:
 
 ### Environment Variables
 
-You can use either Anthropic (Claude) or OpenAI (GPT-4):
+The tool supports both Anthropic Claude and OpenAI GPT models. By default, it uses OpenAI with GPT-4.1.
 
-**Option 1: Using Anthropic Claude**
-```bash
-export ANTHROPIC_API_KEY=your_anthropic_key_here
-```
-
-**Option 2: Using OpenAI GPT-4**
+**Option 1: Using OpenAI GPT-4.1 (Default)**
 ```bash
 export OPENAI_API_KEY=your_openai_key_here
 ```
 
+**Option 2: Using Anthropic Claude**
+```bash
+export AI_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=your_anthropic_key_here
+```
+
+**Option 3: Specify Custom Models**
+```bash
+# Use specific OpenAI model
+export OPENAI_API_KEY=your_key
+export OPENAI_MODEL=gpt-4o
+
+# Or use specific Anthropic model
+export AI_PROVIDER=anthropic
+export ANTHROPIC_API_KEY=your_key
+export ANTHROPIC_MODEL=claude-3-opus-20240229
+```
+
 Or create a `.env` file:
 ```
-# Use Anthropic Claude
-ANTHROPIC_API_KEY=your_anthropic_key_here
-
-# OR use OpenAI GPT-4
+# Use OpenAI with default GPT-4.1
 OPENAI_API_KEY=your_openai_key_here
+
+# OR use Anthropic Claude
+AI_PROVIDER=anthropic
+ANTHROPIC_API_KEY=your_anthropic_key_here
 ```
 
-**Note:** If both keys are set, Anthropic Claude will be used by default.
+**Available Models:**
+- OpenAI: `gpt-4.1` (default), `gpt-4o`, `gpt-4o-mini`, `gpt-3.5-turbo`
+- Anthropic: `claude-sonnet-4-20250514` (default), `claude-3-opus-20240229`, `claude-3-sonnet-20240229`
 
 ## Example Workflow
 
