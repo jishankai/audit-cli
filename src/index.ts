@@ -32,6 +32,9 @@ async function main() {
     if (config.targetFile) {
       cli.displayInfo(`  Target File: ${config.targetFile}`);
     }
+    if (config.outputPath) {
+      cli.displayInfo(`  Output Path: ${config.outputPath}`);
+    }
     cli.displayInfo(`  Vulnerability Checks: ${config.vulnerabilityChecks.length} selected`);
     console.log('\n');
 

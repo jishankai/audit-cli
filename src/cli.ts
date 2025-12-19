@@ -1,5 +1,6 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
+import path from 'path';
 import { SourceType, VulnerabilityType, AuditConfig } from './types';
 import inquirerFuzzyPath from 'inquirer-fuzzy-path';
 
@@ -71,20 +72,67 @@ export class InteractiveCLI {
         targetFile = fileAnswer.targetFile;
       }
     } else {
-      // Local path: use fuzzy path autocomplete for both directories and files
-      sourcePathAnswer = await inquirer.prompt([
+      // Local path: offer choice between fuzzy search and direct input
+      const pathMethodAnswer = await inquirer.prompt([
         {
-          type: 'fuzzypath',
-          name: 'sourcePath',
-          message: 'Select local directory or .sol file to audit (e.g., ./contracts or ./Contract.sol):',
-          excludePath: (nodePath: string) => nodePath.includes('node_modules'),
-          excludeFilter: (nodePath: string) => nodePath.startsWith('.'),
-          itemType: 'any',
-          rootPath: process.cwd(),
-          suggestOnly: false,
-          depthLimit: 10
+          type: 'list',
+          name: 'method',
+          message: 'How would you like to select the path?',
+          choices: [
+            { name: 'Browse current directory (fuzzy search)', value: 'fuzzy' },
+            { name: 'Enter absolute path directly', value: 'direct' }
+          ]
         }
       ]);
+
+      if (pathMethodAnswer.method === 'fuzzy') {
+        // Fuzzy search within current directory
+        const pathAnswer = await inquirer.prompt([
+          {
+            type: 'fuzzypath',
+            name: 'sourcePath',
+            message: 'Select directory or .sol file (type to search):',
+            excludePath: (nodePath: string) => nodePath.includes('node_modules'),
+            excludeFilter: (nodePath: string) => nodePath.startsWith('.'),
+            itemType: 'any',
+            rootPath: process.cwd(),
+            suggestOnly: true,
+            depthLimit: 10
+          }
+        ]);
+
+        const resolvedPath = path.isAbsolute(pathAnswer.sourcePath)
+          ? pathAnswer.sourcePath
+          : path.resolve(process.cwd(), pathAnswer.sourcePath);
+
+        sourcePathAnswer = { sourcePath: resolvedPath };
+      } else {
+        // Direct path input for paths outside current directory
+        const pathAnswer = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'sourcePath',
+            message: 'Enter absolute path to directory or .sol file:',
+            validate: async (input: string) => {
+              if (!input || input.trim() === '') {
+                return 'Path cannot be empty';
+              }
+              const resolvedPath = path.isAbsolute(input) ? input : path.resolve(process.cwd(), input);
+              const fs = await import('fs-extra');
+              if (!(await fs.pathExists(resolvedPath))) {
+                return `Path does not exist: ${resolvedPath}`;
+              }
+              return true;
+            }
+          }
+        ]);
+
+        const resolvedPath = path.isAbsolute(pathAnswer.sourcePath)
+          ? pathAnswer.sourcePath
+          : path.resolve(process.cwd(), pathAnswer.sourcePath);
+
+        sourcePathAnswer = { sourcePath: resolvedPath };
+      }
       // For local, targetFile remains undefined as sourcePath can be either file or directory
     }
 
