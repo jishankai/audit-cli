@@ -1,6 +1,10 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import { SourceType, VulnerabilityType, AuditConfig } from './types';
+import inquirerFuzzyPath from 'inquirer-fuzzy-path';
+
+// Register fuzzy path plugin for path autocomplete
+inquirer.registerPrompt('fuzzypath', inquirerFuzzyPath);
 
 export class InteractiveCLI {
   async getAuditConfig(): Promise<AuditConfig> {
@@ -18,48 +22,67 @@ export class InteractiveCLI {
       }
     ]);
 
-    const sourcePathAnswer = await inquirer.prompt([
-      {
-        type: 'input',
-        name: 'sourcePath',
-        message:
-          sourceTypeAnswer.sourceType === SourceType.GITHUB
-            ? 'Enter GitHub repository URL:'
-            : 'Enter local path:',
-        validate: (input: string) => {
-          if (!input || input.trim() === '') {
-            return 'Path cannot be empty';
-          }
-          return true;
-        }
-      }
-    ]);
-
-    const targetFileAnswer = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'hasTargetFile',
-        message: 'Do you want to audit a specific file (or entire project)?',
-        default: false
-      }
-    ]);
-
+    let sourcePathAnswer;
     let targetFile: string | undefined;
-    if (targetFileAnswer.hasTargetFile) {
-      const fileAnswer = await inquirer.prompt([
+
+    if (sourceTypeAnswer.sourceType === SourceType.GITHUB) {
+      // GitHub URL: use regular input
+      sourcePathAnswer = await inquirer.prompt([
         {
           type: 'input',
-          name: 'targetFile',
-          message: 'Enter the relative path to the Solidity file:',
+          name: 'sourcePath',
+          message: 'Enter GitHub repository URL:',
           validate: (input: string) => {
-            if (!input.endsWith('.sol')) {
-              return 'File must be a .sol file';
+            if (!input || input.trim() === '') {
+              return 'URL cannot be empty';
             }
             return true;
           }
         }
       ]);
-      targetFile = fileAnswer.targetFile;
+
+      // For GitHub, optionally select a specific file
+      const targetFileAnswer = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'hasTargetFile',
+          message: 'Do you want to audit a specific file (or entire project)?',
+          default: false
+        }
+      ]);
+
+      if (targetFileAnswer.hasTargetFile) {
+        const fileAnswer = await inquirer.prompt([
+          {
+            type: 'input',
+            name: 'targetFile',
+            message: 'Enter the relative path to the Solidity file:',
+            validate: (input: string) => {
+              if (!input.endsWith('.sol')) {
+                return 'File must be a .sol file';
+              }
+              return true;
+            }
+          }
+        ]);
+        targetFile = fileAnswer.targetFile;
+      }
+    } else {
+      // Local path: use fuzzy path autocomplete for both directories and files
+      sourcePathAnswer = await inquirer.prompt([
+        {
+          type: 'fuzzypath',
+          name: 'sourcePath',
+          message: 'Select directory or .sol file to audit (type to search):',
+          excludePath: (nodePath: string) => nodePath.includes('node_modules'),
+          excludeFilter: (nodePath: string) => nodePath.startsWith('.'),
+          itemType: 'any',
+          rootPath: process.cwd(),
+          suggestOnly: false,
+          depthLimit: 10
+        }
+      ]);
+      // For local, targetFile remains undefined as sourcePath can be either file or directory
     }
 
     // Automatically check all vulnerability types
@@ -78,9 +101,15 @@ export class InteractiveCLI {
     if (outputAnswer.customOutput) {
       const pathAnswer = await inquirer.prompt([
         {
-          type: 'input',
+          type: 'fuzzypath',
           name: 'outputPath',
-          message: 'Enter output directory path:',
+          message: 'Select output directory (type to search, use arrow keys):',
+          excludePath: (nodePath: string) => nodePath.includes('node_modules'),
+          excludeFilter: (nodePath: string) => nodePath.startsWith('.'),
+          itemType: 'directory',
+          rootPath: process.cwd(),
+          suggestOnly: true,
+          depthLimit: 5,
           default: './reports'
         }
       ]);

@@ -7,7 +7,8 @@ An AI-powered smart contract security audit tool that combines Slither static an
 - **Multiple Source Options**: Audit contracts from GitHub repositories or local files
 - **Slither Integration**: Automated static analysis and IR extraction
 - **AI-Powered Analysis**: Claude AI analyzes contracts for 18+ vulnerability types
-- **Interactive CLI**: User-friendly interface with inquirer.js
+- **Interactive CLI**: User-friendly interface with inquirer.js and smart path autocomplete
+- **Path Autocomplete**: Fuzzy search and navigation for selecting local paths and files
 - **Comprehensive Reports**: Generates detailed Markdown and JSON reports
 - **24 Vulnerability Types**: Covers all major smart contract security issues
 
