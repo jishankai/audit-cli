@@ -31,10 +31,13 @@ export class InteractiveCLI {
         {
           type: 'input',
           name: 'sourcePath',
-          message: 'Enter GitHub repository URL:',
+          message: 'Enter GitHub repository URL (e.g., https://github.com/user/repo):',
           validate: (input: string) => {
             if (!input || input.trim() === '') {
               return 'URL cannot be empty';
+            }
+            if (!input.includes('github.com')) {
+              return 'Please enter a valid GitHub repository URL';
             }
             return true;
           }
@@ -56,7 +59,7 @@ export class InteractiveCLI {
           {
             type: 'input',
             name: 'targetFile',
-            message: 'Enter the relative path to the Solidity file:',
+            message: 'Enter the relative path to the Solidity file (e.g., contracts/Token.sol):',
             validate: (input: string) => {
               if (!input.endsWith('.sol')) {
                 return 'File must be a .sol file';
@@ -73,7 +76,7 @@ export class InteractiveCLI {
         {
           type: 'fuzzypath',
           name: 'sourcePath',
-          message: 'Select directory or .sol file to audit (type to search):',
+          message: 'Select local directory or .sol file to audit (e.g., ./contracts or ./Contract.sol):',
           excludePath: (nodePath: string) => nodePath.includes('node_modules'),
           excludeFilter: (nodePath: string) => nodePath.startsWith('.'),
           itemType: 'any',
@@ -88,33 +91,8 @@ export class InteractiveCLI {
     // Automatically check all vulnerability types
     const vulnerabilityChecks = Object.values(VulnerabilityType);
 
-    const outputAnswer = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'customOutput',
-        message: 'Do you want to specify a custom output directory?',
-        default: false
-      }
-    ]);
-
-    let outputPath: string | undefined;
-    if (outputAnswer.customOutput) {
-      const pathAnswer = await inquirer.prompt([
-        {
-          type: 'fuzzypath',
-          name: 'outputPath',
-          message: 'Select output directory (type to search, use arrow keys):',
-          excludePath: (nodePath: string) => nodePath.includes('node_modules'),
-          excludeFilter: (nodePath: string) => nodePath.startsWith('.'),
-          itemType: 'directory',
-          rootPath: process.cwd(),
-          suggestOnly: true,
-          depthLimit: 5,
-          default: './reports'
-        }
-      ]);
-      outputPath = pathAnswer.outputPath;
-    }
+    // Use default reports directory
+    const outputPath = './reports';
 
     return {
       sourceType: sourceTypeAnswer.sourceType,
