@@ -11,6 +11,7 @@ export enum ReportFormat {
 }
 
 export enum VulnerabilityType {
+  // Core Vulnerabilities
   RE_ENTRANCY = 'Re-Entrancy',
   ARITHMETIC_OVERFLOW = 'Arithmetic Overflow and Underflow',
   SELF_DESTRUCT = 'Self Destruct',
@@ -20,15 +21,60 @@ export enum VulnerabilityType {
   DENIAL_OF_SERVICE = 'Denial of Service',
   PHISHING_TX_ORIGIN = 'Phishing with tx.origin',
   HIDING_MALICIOUS_CODE = 'Hiding Malicious Code with External Contract',
-  HONEYPOT = 'Honeypot',
   FRONT_RUNNING = 'Front Running',
   BLOCK_TIMESTAMP_MANIPULATION = 'Block Timestamp Manipulation',
   SIGNATURE_REPLAY = 'Signature Replay',
   BYPASS_CONTRACT_SIZE_CHECK = 'Bypass Contract Size Check',
   DEPLOY_DIFFERENT_CONTRACTS = 'Deploy Different Contracts at Same Address',
-  VAULT_INFLATION_ATTACK = 'Vault Inflation Attack',
-  WETH_PERMIT = 'WETH Permit',
-  GAS_RULE_63_64 = '63 / 64 Gas Rule'
+  
+  // Access Control & Authorization
+  UNPROTECTED_INITIALIZER = 'Unprotected Initializer',
+  MISSING_ACCESS_CONTROL = 'Missing Access Control',
+  CENTRALIZATION_RISK = 'Centralization Risk',
+  WEAK_ACCESS_CONTROL = 'Weak Access Control',
+  
+  // Oracle & Price Manipulation
+  ORACLE_MANIPULATION = 'Oracle Manipulation',
+  FLASH_LOAN_ATTACK = 'Flash Loan Attack',
+  PRICE_MANIPULATION = 'Price Manipulation',
+  
+  // DeFi Specific
+  SLIPPAGE_PROTECTION = 'Insufficient Slippage Protection',
+  ROUNDING_ERRORS = 'Rounding Errors and Precision Loss',
+  TOKEN_APPROVAL_RACE = 'Token Approval Race Condition',
+  
+  // Proxy & Upgradability
+  UNINITIALIZED_PROXY = 'Uninitialized Proxy',
+  STORAGE_COLLISION = 'Storage Collision in Proxy',
+  FUNCTION_SELECTOR_COLLISION = 'Function Selector Collision',
+  CONSTRUCTOR_IN_UPGRADEABLE = 'Constructor in Upgradeable Contract',
+  
+  // Token Issues
+  ERC20_TRANSFER_RETURN = 'Unchecked ERC20 Transfer Return Value',
+  FEE_ON_TRANSFER = 'Fee-on-Transfer and Deflationary Token Issues',
+  REBASING_TOKEN = 'Rebasing Token Issues',
+  
+  // Logic & State
+  UNCHECKED_RETURN_VALUE = 'Unchecked Low-Level Call Return Value',
+  STATE_VARIABLE_SHADOWING = 'State Variable Shadowing',
+  UNINITIALIZED_STATE = 'Uninitialized State Variables',
+  LOCKED_ETHER = 'Locked Ether',
+  
+  // Cross-Chain & Bridge
+  CROSS_CHAIN_REPLAY = 'Cross-Chain Replay Attack',
+  BRIDGE_VALIDATION = 'Insufficient Bridge Validation',
+  
+  // MEV & Transaction Ordering
+  MEV_VULNERABILITY = 'MEV Vulnerability',
+  TRANSACTION_ORDERING = 'Transaction Ordering Dependence',
+  
+  // Gas & DoS
+  GAS_GRIEFING = 'Gas Griefing',
+  UNBOUNDED_LOOP = 'Unbounded Loop',
+  
+  // Miscellaneous Critical
+  UNEXPECTED_BALANCE = 'Unexpected Contract Balance and Forced Ether',
+  DELEGATECALL_TO_ARBITRARY = 'Delegatecall to Arbitrary Address'
 }
 
 export interface AuditConfig {

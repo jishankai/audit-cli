@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 import { VulnerabilityType, VulnerabilityFinding, SlitherResult, AggregatedAnalyzerResult } from '../types';
+import { VULNERABILITY_KNOWLEDGE_BASE } from '../vulnerabilities/knowledge-base';
 import fs from 'fs-extra';
 
 type AIProvider = 'anthropic' | 'openai';
@@ -186,6 +187,17 @@ Provide:
 
     const fileInfo = fileName ? `\n\nFILE NAME: ${fileName}\n` : '';
 
+    // Build vulnerability knowledge base section with key patterns
+    const vulnerabilityKnowledge = vulnerabilityTypes.map(vulnType => {
+      const info = VULNERABILITY_KNOWLEDGE_BASE[vulnType];
+      if (!info) return `${vulnType}: (No additional info)`;
+      
+      return `${vulnType}:
+  Description: ${info.description}
+  Key Patterns: ${info.patterns.slice(0, 5).join('; ')}
+  Examples: ${info.examples.length > 0 ? info.examples[0] : 'See description'}`;
+    }).join('\n\n');
+
     return `You are a smart contract security auditor. Analyze the following Solidity contract for security vulnerabilities.${fileInfo}
 CONTRACT CODE:
 \`\`\`solidity
@@ -198,17 +210,46 @@ ${detectorsByTool}
 SLITHER IR/SUMMARY:
 ${irCode}
 
+VULNERABILITY KNOWLEDGE BASE:
+Below are detailed descriptions of each vulnerability type you should check. Pay close attention to the patterns and "NOT applicable" clauses.
+
+${vulnerabilityKnowledge}
+
 VULNERABILITY TYPES TO CHECK:
 ${vulnerabilityTypes.map((v, i) => `${i + 1}. ${v}`).join('\n')}
 
 Please analyze the contract for these specific vulnerability types. Consider findings from both Slither and Mythril tools.
 
-CRITICAL INSTRUCTIONS:
-- ONLY report vulnerabilities that ACTUALLY EXIST in the code
-- DO NOT report informational findings about vulnerabilities that are NOT present
-- DO NOT include findings like "No [vulnerability type] detected" or "No action needed"
-- If a vulnerability type is not present in the contract, simply omit it from the results
-- Focus on REAL security issues that need to be addressed
+CRITICAL INSTRUCTIONS FOR ACCURATE ANALYSIS:
+
+1. PRECISION IS KEY - Avoid False Positives:
+   - ONLY report vulnerabilities that ACTUALLY EXIST with concrete evidence
+   - DO NOT report a finding just because a pattern looks similar
+   - Understand the CONTEXT and actual impact before reporting
+   - Example: A withdraw() function with CEI pattern is NOT vulnerable to reentrancy
+   - Example: User withdrawing their OWN funds is NOT a "missing access control" issue
+
+2. Distinguish Between Similar Vulnerabilities:
+   - Reentrancy: External call BEFORE state update (vulnerable) vs AFTER (safe)
+   - Transaction Ordering: Multiple users competing for same resource (vulnerable) vs independent operations (safe)
+   - Unbounded Loop: Iterating over growing array of all users (vulnerable) vs single user state (safe)
+   - Missing Access Control: Admin functions without protection (vulnerable) vs user functions (safe)
+
+3. Read the VULNERABILITY KNOWLEDGE BASE Carefully:
+   - Each vulnerability type has "NOT applicable to..." clauses
+   - Pay attention to exclusions and specific conditions
+   - Don't force-fit a finding into a category if it doesn't match
+
+4. Quality Over Quantity:
+   - It's better to report 3 REAL issues than 10 questionable ones
+   - If uncertain, lean toward NOT reporting rather than creating false positives
+   - DO NOT include findings like "No [vulnerability type] detected"
+   - If no vulnerability exists, omit it entirely from results
+
+5. Required Evidence:
+   - Must identify the EXACT vulnerable code pattern
+   - Must explain WHY it's exploitable with specific attack scenario
+   - Must provide line numbers and function names
 
 For each ACTUAL vulnerability found, provide:
 1. Vulnerability Type (from the list above)
