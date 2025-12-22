@@ -1,6 +1,10 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import path from 'path';
+import boxen from 'boxen';
+import figlet from 'figlet';
+import gradient from 'gradient-string';
+import Table from 'cli-table3';
 import { SourceType, VulnerabilityType, AuditConfig, ReportFormat } from './types';
 import inquirerFuzzyPath from 'inquirer-fuzzy-path';
 
@@ -9,7 +13,8 @@ inquirer.registerPrompt('fuzzypath', inquirerFuzzyPath);
 
 export class InteractiveCLI {
   async getAuditConfig(): Promise<AuditConfig> {
-    console.log(chalk.cyan.bold('\n=== Smart Contract Audit CLI ===\n'));
+    // Display welcome banner first
+    this.displayWelcome();
 
     const sourceTypeAnswer = await inquirer.prompt([
       {
@@ -114,19 +119,15 @@ export class InteractiveCLI {
       {
         type: 'checkbox',
         name: 'reportFormats',
-        message: 'Select report formats:',
+        message: 'Select report formats (Space to select, Enter to confirm):',
         choices: [
-          { name: 'Markdown (.md)', value: ReportFormat.MARKDOWN, checked: true },
-          { name: 'JSON (.json)', value: ReportFormat.JSON, checked: true },
-          { name: 'PDF (.pdf)', value: ReportFormat.PDF, checked: false },
-          { name: 'All formats', value: ReportFormat.ALL, checked: false }
+          { name: 'Markdown (.md)', value: ReportFormat.MARKDOWN, checked: false },
+          { name: 'JSON (.json)', value: ReportFormat.JSON, checked: false },
+          { name: 'PDF (.pdf)', value: ReportFormat.PDF, checked: true }
         ],
         validate: (input: ReportFormat[]) => {
           if (input.length === 0) {
             return 'Please select at least one report format';
-          }
-          if (input.includes(ReportFormat.ALL) && input.length > 1) {
-            return 'Cannot select "All formats" together with individual formats';
           }
           return true;
         }
@@ -147,10 +148,36 @@ export class InteractiveCLI {
   }
 
   displayWelcome(): void {
-    console.log(chalk.cyan('\n' + '='.repeat(60)));
-    console.log(chalk.cyan.bold('  Smart Contract Security Audit Tool'));
-    console.log(chalk.cyan('  Powered by Multi-Tool Analysis (Slither & Mythril) + AI'));
-    console.log(chalk.cyan('='.repeat(60) + '\n'));
+    console.clear();
+    
+    // Create ASCII art title
+    const title = figlet.textSync('Audit CLI', {
+      font: 'ANSI Shadow',
+      horizontalLayout: 'default',
+      verticalLayout: 'default'
+    });
+    
+    // Apply gradient to title
+    console.log('\n' + gradient.pastel.multiline(title));
+    
+    // Create info box
+    const infoBox = boxen(
+      chalk.white.bold('Smart Contract Security Audit Tool\n\n') +
+      chalk.gray('🔍 Multi-Tool Static Analysis: ') + chalk.cyan('Slither + Mythril\n') +
+      chalk.gray('🤖 AI-Powered Analysis: ') + chalk.cyan('GPT-4 / Claude Sonnet\n') +
+      chalk.gray('📊 42 Vulnerability Types\n') +
+      chalk.gray('📝 Multiple Report Formats'),
+      {
+        padding: 1,
+        margin: 1,
+        borderStyle: 'round',
+        borderColor: 'cyan',
+        backgroundColor: '#1a1a2e'
+      }
+    );
+    
+    console.log(infoBox);
+    console.log(chalk.gray('─'.repeat(70)) + '\n');
   }
 
   displayError(message: string): void {
@@ -167,5 +194,141 @@ export class InteractiveCLI {
 
   displayInfo(message: string): void {
     console.log(chalk.blue('ℹ ') + message);
+  }
+
+  displayConfigSummary(config: AuditConfig): void {
+    console.log('\n' + chalk.cyan.bold('📋 Audit Configuration Summary'));
+    console.log(chalk.gray('─'.repeat(70)));
+    
+    const table = new Table({
+      style: { 
+        head: ['cyan', 'bold'],
+        border: ['gray']
+      },
+      colWidths: [25, 45],
+      wordWrap: true
+    });
+
+    table.push(
+      [chalk.cyan('Source Type'), config.sourceType === SourceType.GITHUB ? '🌐 GitHub Repository' : '📁 Local Directory/File'],
+      [chalk.cyan('Source Path'), chalk.white(config.sourcePath)],
+      [chalk.cyan('Target File'), config.targetFile ? chalk.white(config.targetFile) : chalk.gray('All .sol files')],
+      [chalk.cyan('Vulnerability Checks'), chalk.green(`${config.vulnerabilityChecks.length} types`)],
+      [chalk.cyan('Report Formats'), config.reportFormats?.map(f => {
+        const icons: Record<string, string> = {
+          'markdown': '📝',
+          'json': '📊', 
+          'pdf': '📄',
+          'all': '📚'
+        };
+        return icons[f] || '📄';
+      }).join(' ') || '📝 📊'],
+      [chalk.cyan('Output Directory'), chalk.white(config.outputPath || './reports')]
+    );
+
+    console.log(table.toString());
+    console.log(chalk.gray('─'.repeat(70)) + '\n');
+  }
+
+  displayAuditSummary(report: {
+    totalIssues: number;
+    criticalIssues: number;
+    highIssues: number;
+    mediumIssues: number;
+    lowIssues: number;
+    infoIssues: number;
+  }): void {
+    console.log('\n' + chalk.cyan.bold('🎯 Audit Results Summary'));
+    console.log(chalk.gray('─'.repeat(70)));
+    
+    const table = new Table({
+      head: [
+        chalk.white.bold('Severity'),
+        chalk.white.bold('Count'),
+        chalk.white.bold('Visual')
+      ],
+      colWidths: [15, 10, 45],
+      style: { 
+        head: ['cyan', 'bold'],
+        border: ['gray']
+      }
+    });
+
+    const createBar = (count: number, max: number, color: string) => {
+      const barLength = Math.min(Math.ceil((count / Math.max(max, 1)) * 30), 30);
+      const colorFn = (chalk as any)[color];
+      return colorFn('█'.repeat(barLength)) + chalk.gray('░'.repeat(30 - barLength));
+    };
+
+    const maxCount = Math.max(
+      report.criticalIssues,
+      report.highIssues,
+      report.mediumIssues,
+      report.lowIssues,
+      report.infoIssues,
+      1
+    );
+
+    table.push(
+      [
+        chalk.red.bold('🔴 Critical'),
+        chalk.red.bold(report.criticalIssues.toString()),
+        createBar(report.criticalIssues, maxCount, 'red')
+      ],
+      [
+        chalk.magenta.bold('🟣 High'),
+        chalk.magenta.bold(report.highIssues.toString()),
+        createBar(report.highIssues, maxCount, 'magenta')
+      ],
+      [
+        chalk.yellow.bold('🟡 Medium'),
+        chalk.yellow.bold(report.mediumIssues.toString()),
+        createBar(report.mediumIssues, maxCount, 'yellow')
+      ],
+      [
+        chalk.blue.bold('🔵 Low'),
+        chalk.blue.bold(report.lowIssues.toString()),
+        createBar(report.lowIssues, maxCount, 'blue')
+      ],
+      [
+        chalk.gray.bold('⚪ Info'),
+        chalk.gray.bold(report.infoIssues.toString()),
+        createBar(report.infoIssues, maxCount, 'gray')
+      ]
+    );
+
+    console.log(table.toString());
+    
+    // Overall status
+    const totalIssues = report.totalIssues;
+    let statusMessage = '';
+    let statusColor = 'green';
+    
+    if (report.criticalIssues > 0 || report.highIssues > 0) {
+      statusMessage = '⚠️  ATTENTION REQUIRED - Critical or High severity issues found!';
+      statusColor = 'red';
+    } else if (report.mediumIssues > 0) {
+      statusMessage = '⚡ Review Recommended - Medium severity issues found';
+      statusColor = 'yellow';
+    } else if (totalIssues === 0) {
+      statusMessage = '✅ No issues detected - Contract appears secure';
+      statusColor = 'green';
+    } else {
+      statusMessage = 'ℹ️  Minor issues found - Review informational findings';
+      statusColor = 'blue';
+    }
+    
+    const statusBox = boxen(
+      (chalk as any)[statusColor].bold(statusMessage),
+      {
+        padding: 0.5,
+        margin: { top: 1, bottom: 0, left: 0, right: 0 },
+        borderStyle: 'round',
+        borderColor: statusColor as any
+      }
+    );
+    
+    console.log(statusBox);
+    console.log(chalk.gray('─'.repeat(70)) + '\n');
   }
 }

@@ -1,6 +1,8 @@
-import ora from 'ora';
+import ora, { Ora } from 'ora';
 import path from 'path';
 import fs from 'fs-extra';
+import chalk from 'chalk';
+import cliProgress from 'cli-progress';
 import { AuditConfig, AuditReport, VulnerabilityFinding, AggregatedAnalyzerResult } from './types';
 import { SourceFetcher } from './fetcher';
 import { SlitherAnalyzer } from './analyzers/slither';
@@ -29,35 +31,67 @@ export class AuditOrchestrator {
   }
 
   async runAudit(config: AuditConfig): Promise<void> {
-    let spinner = ora();
+    let spinner: Ora | undefined;
 
     try {
-      spinner = ora('Fetching source code...').start();
+      // Display configuration summary
+      this.cli.displayConfigSummary(config);
+
+      // Step 1: Fetch source code
+      spinner = ora({
+        text: chalk.cyan('Fetching source code...'),
+        spinner: 'dots',
+        color: 'cyan'
+      }).start();
+      
       const targetPath = await this.fetcher.fetch(
         config.sourceType,
         config.sourcePath,
         config.targetFile
       );
-      spinner.succeed('Source code fetched successfully');
+      
+      spinner.succeed(chalk.green('✓ Source code fetched successfully'));
 
       const isDirectory = (await fs.stat(targetPath)).isDirectory();
       const solidityFiles = isDirectory
         ? await this.fetcher.listSolidityFiles(targetPath)
         : [targetPath];
 
-      this.cli.displayInfo(`Found ${solidityFiles.length} Solidity file(s) to audit`);
+      console.log(chalk.blue('ℹ') + chalk.gray(` Found ${chalk.white.bold(solidityFiles.length)} Solidity file(s) to audit\n`));
 
-      spinner = ora('Running static analysis tools...').start();
+      // Step 2: Static Analysis
+      spinner = ora({
+        text: chalk.cyan('Running static analysis tools (Slither + Mythril)...'),
+        spinner: 'dots',
+        color: 'cyan'
+      }).start();
+      
       const aggregatedResult = await this.runAllAnalyzers(targetPath);
       this.displayAnalyzerResults(aggregatedResult, spinner);
 
+      // Step 3: AI Analysis with progress bar
       const aiProvider = this.llmAuditor.getProviderName();
-      spinner = ora(`Performing AI-powered security analysis using ${aiProvider}...`).start();
+      console.log(chalk.cyan.bold(`\n🤖 AI-Powered Analysis (${aiProvider})`));
+      console.log(chalk.gray('─'.repeat(70)));
+      
+      const progressBar = new cliProgress.SingleBar({
+        format: chalk.cyan('{bar}') + ' | {percentage}% | {value}/{total} files | {filename}',
+        barCompleteChar: '\u2588',
+        barIncompleteChar: '\u2591',
+        hideCursor: true
+      });
+
+      progressBar.start(solidityFiles.length, 0, { filename: 'Starting...' });
+      
       const allFindings: VulnerabilityFinding[] = [];
 
-      for (const solidityFile of solidityFiles) {
+      for (let i = 0; i < solidityFiles.length; i++) {
+        const solidityFile = solidityFiles[i];
         const contractCode = await fs.readFile(solidityFile, 'utf-8');
         const fileName = path.basename(solidityFile);
+        
+        progressBar.update(i, { filename: fileName });
+        
         const findings = await this.llmAuditor.auditContract(
           contractCode,
           aggregatedResult,
@@ -68,7 +102,6 @@ export class AuditOrchestrator {
         // Add file information to each finding
         findings.forEach(finding => {
           finding.affectedFiles = [fileName];
-          // Ensure location includes file name
           if (!finding.location.includes(fileName)) {
             finding.location = `${fileName}: ${finding.location}`;
           }
@@ -77,16 +110,25 @@ export class AuditOrchestrator {
         allFindings.push(...findings);
       }
 
+      progressBar.update(solidityFiles.length, { filename: 'Completed' });
+      progressBar.stop();
+
       // Merge similar findings
       const mergedFindings = this.mergeFindings(allFindings);
+      console.log(chalk.green(`✓ AI analysis completed - found ${chalk.bold(mergedFindings.length)} unique findings\n`));
 
-      spinner.succeed(`AI analysis (${aiProvider}) completed - found ${mergedFindings.length} unique findings`);
-
-      spinner = ora('Generating comprehensive analysis...').start();
+      // Step 4: Comprehensive Analysis
+      spinner = ora({
+        text: chalk.cyan('Generating comprehensive analysis...'),
+        spinner: 'dots',
+        color: 'cyan'
+      }).start();
+      
       const comprehensiveAnalysis = solidityFiles.length === 1
         ? await this.llmAuditor.performComprehensiveAnalysis(solidityFiles[0], aggregatedResult)
         : await this.llmAuditor.generateProjectSummary(mergedFindings, aggregatedResult);
-      spinner.succeed('Comprehensive analysis completed');
+      
+      spinner.succeed(chalk.green('✓ Comprehensive analysis completed'));
 
       const report: AuditReport = {
         projectName: path.basename(config.sourcePath),
@@ -97,26 +139,31 @@ export class AuditOrchestrator {
         llmAnalysis: comprehensiveAnalysis
       };
 
-      spinner = ora('Generating audit report...').start();
+      // Step 5: Generate Reports
+      spinner = ora({
+        text: chalk.cyan('Generating audit reports...'),
+        spinner: 'dots',
+        color: 'cyan'
+      }).start();
+      
       const reportPaths = await this.reportGenerator.generateReport(report, config.outputPath, config.reportFormats);
       const reportFileNames = reportPaths.map(p => path.basename(p));
-      spinner.succeed(`Audit report(s) generated: ${reportFileNames.join(', ')}`);
+      
+      spinner.succeed(chalk.green(`✓ Report(s) generated: ${reportFileNames.join(', ')}`));
 
-      // First report path available for potential future use
-      const reportPath = reportPaths[0]; // eslint-disable-line @typescript-eslint/no-unused-vars
+      // Display beautiful summary
+      this.cli.displayAuditSummary(report.summary);
 
-      console.log(this.reportGenerator.generateConsoleSummary(report));
+      // Display report locations
+      console.log(chalk.cyan.bold('📁 Report Locations:'));
+      reportPaths.forEach(rp => {
+        console.log(chalk.gray('  • ') + chalk.white(rp));
+      });
+      console.log();
 
-      if (report.summary.criticalIssues > 0 || report.summary.highIssues > 0) {
-        this.cli.displayWarning(
-          'Critical or High severity issues found! Review the report immediately.'
-        );
-      } else {
-        this.cli.displaySuccess('No critical or high severity issues found.');
-      }
     } catch (error: any) {
       if (spinner) {
-        spinner.fail('Audit failed');
+        spinner.fail(chalk.red('✗ Audit failed'));
       }
       this.cli.displayError(error.message);
       throw error;
