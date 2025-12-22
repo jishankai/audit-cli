@@ -9,7 +9,7 @@ An AI-powered smart contract security audit tool that combines Slither static an
 - **AI-Powered Analysis**: Claude AI analyzes contracts for 18+ vulnerability types
 - **Interactive CLI**: User-friendly interface with inquirer.js and smart path autocomplete
 - **Path Autocomplete**: Fuzzy search and navigation for selecting local paths and files
-- **Comprehensive Reports**: Generates detailed Markdown and JSON reports
+- **Multiple Report Formats**: Generates detailed Markdown, JSON, and PDF reports
 - **24 Vulnerability Types**: Covers all major smart contract security issues
 
 ## Vulnerability Coverage
@@ -73,7 +73,8 @@ The CLI will guide you through:
 2. Providing the source path/URL
 3. Optionally selecting a specific file
 4. Choosing vulnerability types to check
-5. Setting output directory
+5. Selecting report formats (Markdown, JSON, PDF)
+6. Setting output directory
 
 ### Environment Variables
 
@@ -137,9 +138,16 @@ ANTHROPIC_API_KEY=your_anthropic_key_here
 
 ## Report Output
 
-The tool generates two files:
+The tool generates reports in your selected formats:
 - `audit-report-{timestamp}.md`: Human-readable Markdown report
 - `audit-report-{timestamp}.json`: Machine-readable JSON report
+- `audit-report-{timestamp}.pdf`: Professional PDF report with styled formatting
+
+### PDF Report Features
+- Professional styling with color-coded severity levels
+- Print-optimized layout with proper page breaks
+- Syntax-highlighted code blocks
+- Clean, corporate-ready format for sharing with clients or stakeholders
 
 ### Report Sections
 

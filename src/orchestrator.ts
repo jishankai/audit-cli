@@ -98,8 +98,12 @@ export class AuditOrchestrator {
       };
 
       spinner = ora('Generating audit report...').start();
-      const reportPath = await this.reportGenerator.generateReport(report, config.outputPath);
-      spinner.succeed(`Audit report generated: ${reportPath}`);
+      const reportPaths = await this.reportGenerator.generateReport(report, config.outputPath, config.reportFormats);
+      const reportFileNames = reportPaths.map(p => path.basename(p));
+      spinner.succeed(`Audit report(s) generated: ${reportFileNames.join(', ')}`);
+
+      // First report path available for potential future use
+      const reportPath = reportPaths[0]; // eslint-disable-line @typescript-eslint/no-unused-vars
 
       console.log(this.reportGenerator.generateConsoleSummary(report));
 

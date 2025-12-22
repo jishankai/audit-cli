@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import path from 'path';
-import { SourceType, VulnerabilityType, AuditConfig } from './types';
+import { SourceType, VulnerabilityType, AuditConfig, ReportFormat } from './types';
 import inquirerFuzzyPath from 'inquirer-fuzzy-path';
 
 // Register fuzzy path plugin for path autocomplete
@@ -109,6 +109,30 @@ export class InteractiveCLI {
     // Automatically check all vulnerability types
     const vulnerabilityChecks = Object.values(VulnerabilityType);
 
+    // Report format selection
+    const reportFormatsAnswer = await inquirer.prompt([
+      {
+        type: 'checkbox',
+        name: 'reportFormats',
+        message: 'Select report formats:',
+        choices: [
+          { name: 'Markdown (.md)', value: ReportFormat.MARKDOWN, checked: true },
+          { name: 'JSON (.json)', value: ReportFormat.JSON, checked: true },
+          { name: 'PDF (.pdf)', value: ReportFormat.PDF, checked: false },
+          { name: 'All formats', value: ReportFormat.ALL, checked: false }
+        ],
+        validate: (input: ReportFormat[]) => {
+          if (input.length === 0) {
+            return 'Please select at least one report format';
+          }
+          if (input.includes(ReportFormat.ALL) && input.length > 1) {
+            return 'Cannot select "All formats" together with individual formats';
+          }
+          return true;
+        }
+      }
+    ]);
+
     // Use default reports directory
     const outputPath = './reports';
 
@@ -117,7 +141,8 @@ export class InteractiveCLI {
       sourcePath: sourcePathAnswer.sourcePath,
       targetFile,
       vulnerabilityChecks,
-      outputPath
+      outputPath,
+      reportFormats: reportFormatsAnswer.reportFormats
     };
   }
 

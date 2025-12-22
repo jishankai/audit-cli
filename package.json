@@ -28,6 +28,7 @@
     "fs-extra": "^11.2.0",
     "inquirer": "^9.2.12",
     "inquirer-fuzzy-path": "^2.3.0",
+    "marked": "^9.1.6",
     "openai": "^4.70.1",
     "ora": "^5.4.1",
     "simple-git": "^3.22.0"

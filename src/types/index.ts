@@ -3,6 +3,13 @@ export enum SourceType {
   LOCAL = 'local'
 }
 
+export enum ReportFormat {
+  MARKDOWN = 'markdown',
+  JSON = 'json',
+  PDF = 'pdf',
+  ALL = 'all'
+}
+
 export enum VulnerabilityType {
   RE_ENTRANCY = 'Re-Entrancy',
   ARITHMETIC_OVERFLOW = 'Arithmetic Overflow and Underflow',
@@ -30,6 +37,7 @@ export interface AuditConfig {
   targetFile?: string;
   vulnerabilityChecks: VulnerabilityType[];
   outputPath?: string;
+  reportFormats?: ReportFormat[];
 }
 
 export interface SlitherResult {

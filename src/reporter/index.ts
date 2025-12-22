@@ -1,23 +1,58 @@
 import fs from 'fs-extra';
 import path from 'path';
-import { AuditReport, VulnerabilityFinding } from '../types';
+import { AuditReport, VulnerabilityFinding, ReportFormat } from '../types';
+import { PDFGenerator } from './pdf-generator';
 
 export class ReportGenerator {
-  async generateReport(report: AuditReport, outputPath?: string): Promise<string> {
-    const markdown = this.generateMarkdown(report);
-    const json = JSON.stringify(report, null, 2);
+  private pdfGenerator = new PDFGenerator();
 
+  async generateReport(report: AuditReport, outputPath?: string, formats?: ReportFormat[]): Promise<string[]> {
     const defaultPath = outputPath || path.join(process.cwd(), 'reports');
     await fs.ensureDir(defaultPath);
 
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const generatedFiles: string[] = [];
+
+    // Normalize and dedupe formats; default to markdown and JSON if none provided
+    const baseFormats = formats && formats.length > 0
+      ? Array.from(new Set(formats))
+      : [ReportFormat.MARKDOWN, ReportFormat.JSON];
+
+    const selectedFormats = baseFormats.includes(ReportFormat.ALL)
+      ? [ReportFormat.MARKDOWN, ReportFormat.JSON, ReportFormat.PDF]
+      : baseFormats;
+
+    const markdownContent = this.generateMarkdown(report);
+
+    // Generate requested formats
+    for (const format of selectedFormats) {
+      switch (format) {
+        case ReportFormat.MARKDOWN:
+          generatedFiles.push(await this.generateMarkdownReport(markdownContent, defaultPath, timestamp));
+          break;
+        case ReportFormat.JSON:
+          generatedFiles.push(await this.generateJSONReport(report, defaultPath, timestamp));
+          break;
+        case ReportFormat.PDF:
+          generatedFiles.push(await this.pdfGenerator.generatePDF(markdownContent, defaultPath, timestamp));
+          break;
+      }
+    }
+
+    return generatedFiles;
+  }
+
+  private async generateMarkdownReport(markdown: string, defaultPath: string, timestamp: string): Promise<string> {
     const markdownFile = path.join(defaultPath, `audit-report-${timestamp}.md`);
-    const jsonFile = path.join(defaultPath, `audit-report-${timestamp}.json`);
-
     await fs.writeFile(markdownFile, markdown);
-    await fs.writeFile(jsonFile, json);
-
     return markdownFile;
+  }
+
+  private async generateJSONReport(report: AuditReport, defaultPath: string, timestamp: string): Promise<string> {
+    const json = JSON.stringify(report, null, 2);
+    const jsonFile = path.join(defaultPath, `audit-report-${timestamp}.json`);
+    await fs.writeFile(jsonFile, json);
+    return jsonFile;
   }
 
   private generateMarkdown(report: AuditReport): string {
