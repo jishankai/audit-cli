@@ -224,64 +224,152 @@ export class AuditOrchestrator {
     return merged;
   }
 
-  /**
-   * Checks if two findings are similar enough to merge
-   */
-  private areSimilarFindings(a: VulnerabilityFinding, b: VulnerabilityFinding): boolean {
-    // Must have same type and severity
-    if (a.type !== b.type || a.severity !== b.severity) {
-      return false;
-    }
+  private normalizeForSimilarity(text: string): string {
+    return (text || '')
+      .toLowerCase()
+      // Strip Solidity filenames and common file prefixes (e.g. "Token.sol:" or "contracts/Token.sol")
+      .replace(/\b[\w./-]+\.sol\b:?/g, ' ')
+      // Strip line/column-ish tokens (e.g. ":123" or ":123:45")
+      .replace(/:\d+(?::\d+)?/g, ' ')
+      // Collapse punctuation
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
 
-    // Check title similarity (simple approach: same or very similar)
-    const titleA = a.title.toLowerCase().trim();
-    const titleB = b.title.toLowerCase().trim();
+  private toKeywordSet(text: string): Set<string> {
+    const normalized = this.normalizeForSimilarity(text);
+    return new Set(normalized.split(' ').filter(w => w.length > 3));
+  }
 
-    // Exact match
-    if (titleA === titleB) {
-      return true;
-    }
+  private jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+    if (a.size === 0 && b.size === 0) return 1;
+    if (a.size === 0 || b.size === 0) return 0;
 
-    // Check if titles are similar (contain same keywords)
-    const wordsA = new Set(titleA.split(/\s+/).filter(w => w.length > 3));
-    const wordsB = new Set(titleB.split(/\s+/).filter(w => w.length > 3));
+    const intersectionSize = [...a].filter(x => b.has(x)).length;
+    const unionSize = new Set([...a, ...b]).size;
+    return unionSize === 0 ? 0 : intersectionSize / unionSize;
+  }
 
-    // Calculate similarity (Jaccard index)
-    const intersection = new Set([...wordsA].filter(x => wordsB.has(x)));
-    const union = new Set([...wordsA, ...wordsB]);
+  private severityRank(severity: VulnerabilityFinding['severity']): number {
+    const ranks: Record<VulnerabilityFinding['severity'], number> = {
+      Critical: 5,
+      High: 4,
+      Medium: 3,
+      Low: 2,
+      Info: 1
+    };
+    return ranks[severity] ?? 0;
+  }
 
-    const similarity = intersection.size / union.size;
-
-    // Consider similar if >70% overlap in keywords
-    return similarity > 0.7;
+  private worstSeverity(severities: VulnerabilityFinding['severity'][]): VulnerabilityFinding['severity'] {
+    return severities.reduce((worst, current) =>
+      this.severityRank(current) > this.severityRank(worst) ? current : worst
+    , severities[0]);
   }
 
   /**
-   * Merges multiple similar findings into one
+   * Checks if two findings are similar enough to merge.
+   *
+   * Requirement (per user): ONLY merge within the same VulnerabilityType.
+   *
+   * We also normalize titles to remove file names / line numbers, since the same issue
+   * appearing across multiple files often gets slightly different titles.
+   */
+  private areSimilarFindings(a: VulnerabilityFinding, b: VulnerabilityFinding): boolean {
+    // Only allow merges within same vulnerability type.
+    if (a.type !== b.type) {
+      return false;
+    }
+
+    const titleSimilarity = this.jaccardSimilarity(this.toKeywordSet(a.title), this.toKeywordSet(b.title));
+
+    // Title similarity is the primary signal.
+    if (titleSimilarity >= 0.65) {
+      return true;
+    }
+
+    // Fallback: if both have very short titles, compare recommendations as well.
+    const titleWordsA = this.toKeywordSet(a.title);
+    const titleWordsB = this.toKeywordSet(b.title);
+    if (titleWordsA.size <= 4 && titleWordsB.size <= 4) {
+      const recSimilarity = this.jaccardSimilarity(this.toKeywordSet(a.recommendation), this.toKeywordSet(b.recommendation));
+      return recSimilarity >= 0.6;
+    }
+
+    return false;
+  }
+
+  /**
+   * Merges multiple similar findings into one.
+   * - Aggregates locations/files
+   * - Takes the worst severity across occurrences
+   * - Keeps a representative title (most common; tie-breaker: shorter)
    */
   private mergeSimilarFindings(findings: VulnerabilityFinding[]): VulnerabilityFinding {
     const base = findings[0];
 
-    // Collect all locations and files
     const allLocations: string[] = [];
     const allFiles = new Set<string>();
+    const severities = findings.map(f => f.severity);
+
+    // Pick the most common title to reduce file-specific wording.
+    const titleCounts = new Map<string, number>();
+    const recommendationCounts = new Map<string, number>();
+
+    let mergedEvidence: string | undefined = base.evidence;
 
     findings.forEach(f => {
       allLocations.push(f.location);
       if (f.affectedFiles) {
         f.affectedFiles.forEach(file => allFiles.add(file));
       }
+
+      titleCounts.set(f.title, (titleCounts.get(f.title) ?? 0) + 1);
+
+      const rec = (f.recommendation || '').trim();
+      if (rec) {
+        recommendationCounts.set(rec, (recommendationCounts.get(rec) ?? 0) + 1);
+      }
+
+      if (!mergedEvidence && f.evidence) {
+        mergedEvidence = f.evidence;
+      }
     });
+
+    const bestTitle = [...titleCounts.entries()]
+      .sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1];
+        return a[0].length - b[0].length;
+      })[0]?.[0] ?? base.title;
+
+    const bestRecommendation = [...recommendationCounts.entries()]
+      .sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1];
+        return a[0].length - b[0].length;
+      })[0]?.[0] ?? base.recommendation;
+
+    const mergedSeverity = this.worstSeverity(severities);
+
+    let mergedDescription = base.description;
+    if (findings.length > 1) {
+      mergedDescription = `${base.description}\n\n**Note:** This issue was found in ${findings.length} location(s) across ${allFiles.size || 1} file(s).`;
+
+      if (new Set(severities).size > 1) {
+        mergedDescription += `\n\n**Note:** Severity varied across occurrences; this entry uses the worst-case severity (${mergedSeverity}).`;
+      }
+    }
 
     return {
       ...base,
+      title: bestTitle,
+      severity: mergedSeverity,
+      recommendation: bestRecommendation,
+      evidence: mergedEvidence,
       locations: allLocations,
       affectedFiles: Array.from(allFiles),
       occurrences: findings.length,
-      // Update description to mention multiple occurrences if needed
-      description: findings.length > 1
-        ? `${base.description}\n\n**Note:** This issue was found in ${findings.length} location(s).`
-        : base.description
+      description: mergedDescription
     };
   }
 
