@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs-extra';
 import path from 'path';
 import { AnalyzerResult, AnalyzerDetector, AnalyzerSeverity } from '../types';
+import { isAuditExcludedSolidityPath } from '../utils/solidity-audit-filter';
 import { BaseAnalyzer } from './base';
 
 const execAsync = promisify(exec);
@@ -90,12 +91,23 @@ export class MythrilAnalyzer extends BaseAnalyzer {
         const fullPath = path.join(dir, entry.name);
 
         if (entry.isDirectory()) {
-          // Skip node_modules and hidden directories
-          if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
-            await scan(fullPath);
+          // Skip node_modules, hidden directories, and common vendored/mocks folders
+          if (entry.name.startsWith('.') || entry.name === 'node_modules') {
+            continue;
           }
-        } else if (entry.isFile() && entry.name.endsWith('.sol')) {
-          files.push(fullPath);
+
+          if (isAuditExcludedSolidityPath(fullPath)) {
+            continue;
+          }
+
+          await scan(fullPath);
+          continue;
+        }
+
+        if (entry.isFile() && entry.name.endsWith('.sol')) {
+          if (!isAuditExcludedSolidityPath(fullPath)) {
+            files.push(fullPath);
+          }
         }
       }
     }

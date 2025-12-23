@@ -3,6 +3,7 @@ import fs from 'fs-extra';
 import path from 'path';
 import os from 'os';
 import { SourceType } from '../types';
+import { isAuditExcludedSolidityPath } from '../utils/solidity-audit-filter';
 
 export class SourceFetcher {
   private tempDir: string;
@@ -82,11 +83,23 @@ export class SourceFetcher {
         const fullPath = path.join(dir, entry.name);
 
         if (entry.isDirectory()) {
-          if (!entry.name.startsWith('.') && entry.name !== 'node_modules') {
-            await walk(fullPath);
+          // Skip hidden dirs, node_modules, and common vendored/mocks folders
+          if (entry.name.startsWith('.') || entry.name === 'node_modules') {
+            continue;
           }
-        } else if (entry.name.endsWith('.sol')) {
-          files.push(fullPath);
+
+          if (isAuditExcludedSolidityPath(fullPath)) {
+            continue;
+          }
+
+          await walk(fullPath);
+          continue;
+        }
+
+        if (entry.isFile() && entry.name.endsWith('.sol')) {
+          if (!isAuditExcludedSolidityPath(fullPath)) {
+            files.push(fullPath);
+          }
         }
       }
     }
