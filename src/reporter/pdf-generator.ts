@@ -21,15 +21,16 @@ export class PDFGenerator {
     <title>Smart Contract Security Audit Report</title>
     <style>
         :root {
-            --ink-950: #0b1224;
-            --ink-900: #0f172a;
-            --ink-800: #111827;
-            --muted: #475569;
-            --border: #e2e8f0;
-            --border-strong: #cbd5e1;
-            --card: #f8fafc;
-            --accent: #0ea5e9;
-            --accent-strong: #2563eb;
+            /* Monochrome palette: black / white / greys */
+            --ink-950: #0a0a0a;
+            --ink-900: #111111;
+            --ink-800: #1a1a1a;
+            --muted: #595959;
+            --border: #d9d9d9;
+            --border-strong: #bfbfbf;
+            --card: #f2f2f2;
+            --accent: #111111;
+            --accent-strong: #111111;
         }
 
         * {
@@ -47,7 +48,7 @@ export class PDFGenerator {
             font-size: 15px;
             line-height: 1.7;
             color: var(--ink-800);
-            background: #e8ecf5;
+            background: #f2f2f2;
             margin: 0;
             padding: 28px;
         }
@@ -58,74 +59,41 @@ export class PDFGenerator {
             background: #ffffff;
             padding: 42px 46px;
             border-radius: 16px;
-            box-shadow: 0 20px 48px rgba(15, 23, 42, 0.14);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
         }
 
+        /* Cover (minimal) */
         .cover {
             display: flex;
             flex-direction: column;
-            gap: 18px;
-            background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(37, 99, 235, 0.12));
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 28px 26px;
-        }
-
-        .eyebrow {
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            font-size: 11px;
-            color: var(--muted);
-            margin: 0 0 10px;
-            font-weight: 700;
-        }
-
-        .report-title {
-            margin: 0 0 6px;
-            font-size: 32px;
-            color: var(--ink-950);
-            letter-spacing: -0.02em;
-        }
-
-        .cover h1 {
-            font-size: 32px;
-            letter-spacing: -0.02em;
-            margin: 0;
-            color: var(--ink-950);
-        }
-
-        .subtitle {
-            font-size: 15px;
-            color: var(--muted);
-            margin: 4px 0 0;
-        }
-
-        .cover-meta {
-            display: flex;
-            gap: 14px;
-            flex-wrap: wrap;
-            margin-top: 12px;
-        }
-
-        .meta-chip {
+            justify-content: center;
             background: #ffffff;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 10px 12px;
-            font-weight: 600;
-            color: var(--ink-800);
-            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+            border: 1px solid var(--border-strong);
+            border-radius: 0;
+            padding: 76px 64px;
+            min-height: 740px;
         }
 
-        .pill {
-            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-            color: #ffffff;
-            padding: 10px 14px;
-            border-radius: 12px;
+        .cover-title {
+            margin: 0;
+            font-size: 48px;
+            line-height: 1.08;
+            letter-spacing: -0.03em;
+            font-weight: 900;
+            color: var(--ink-950);
+        }
+
+        .cover-byline {
+            margin: 18px 0 0;
+            font-size: 14px;
+            color: var(--muted);
             font-weight: 700;
-            font-size: 13px;
-            white-space: nowrap;
-            box-shadow: 0 8px 24px rgba(37, 99, 235, 0.25);
+        }
+
+        .cover-date {
+            margin: 10px 0 0;
+            font-size: 14px;
+            color: var(--muted);
         }
 
         .section {
@@ -168,8 +136,8 @@ export class PDFGenerator {
         }
 
         a {
-            color: var(--accent-strong);
-            text-decoration: none;
+            color: inherit;
+            text-decoration: underline;
         }
 
         a:hover {
@@ -192,7 +160,7 @@ export class PDFGenerator {
         }
 
         th {
-            background: #eff6ff;
+            background: #f0f0f0;
             font-weight: 700;
             font-size: 13px;
             letter-spacing: 0.02em;
@@ -201,7 +169,7 @@ export class PDFGenerator {
         }
 
         tr:nth-child(even) td {
-            background: #f9fbff;
+            background: #fafafa;
         }
 
         tr:last-child td {
@@ -209,12 +177,12 @@ export class PDFGenerator {
         }
 
         table:first-of-type {
-            background: #f8fafc;
+            background: #f5f5f5;
             border-color: var(--border);
         }
 
         code {
-            background-color: #f1f5f9;
+            background-color: #f2f2f2;
             padding: 2px 6px;
             border-radius: 6px;
             font-family: 'SFMono-Regular', 'Menlo', 'Ubuntu Mono', monospace;
@@ -222,12 +190,12 @@ export class PDFGenerator {
         }
 
         pre {
-            background: #0f172a;
-            color: #e2e8f0;
+            background: #111111;
+            color: #eeeeee;
             padding: 16px 18px;
             border-radius: 10px;
             overflow-x: auto;
-            border: 1px solid #1f2937;
+            border: 1px solid #333333;
             page-break-inside: avoid;
             font-size: 0.93em;
         }
@@ -239,11 +207,11 @@ export class PDFGenerator {
         }
 
         blockquote {
-            border-left: 4px solid var(--accent-strong);
+            border-left: 4px solid #111111;
             margin: 12px 0 18px;
             padding-left: 16px;
             color: var(--muted);
-            background: #f8fafc;
+            background: #f5f5f5;
             border-radius: 0 8px 8px 0;
         }
 
@@ -262,33 +230,33 @@ export class PDFGenerator {
         }
 
         .severity-critical {
-            color: #b91c1c;
-            background: #fff1f2;
-            border-color: #fecdd3;
+            color: #111111;
+            background: #efefef;
+            border-color: #111111;
         }
         
         .severity-high {
-            color: #b45309;
-            background: #fef3c7;
-            border-color: #fde68a;
+            color: #111111;
+            background: #f5f5f5;
+            border-color: #444444;
         }
         
         .severity-medium {
-            color: #92400e;
-            background: #fffbeb;
-            border-color: #fcd34d;
+            color: #111111;
+            background: #fafafa;
+            border-color: #777777;
         }
         
         .severity-low {
-            color: #1f2937;
-            background: #f8fafc;
-            border-color: #e5e7eb;
+            color: #111111;
+            background: #ffffff;
+            border-color: #aaaaaa;
         }
         
         .severity-info {
-            color: #0f3b66;
-            background: #e0f2fe;
-            border-color: #bfdbfe;
+            color: #111111;
+            background: #ffffff;
+            border-color: #cccccc;
         }
 
         .page-break {
@@ -318,7 +286,7 @@ export class PDFGenerator {
             padding: 18px 18px 14px;
             page-break-inside: avoid;
             background: #ffffff;
-            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
         }
         
         .finding-header {
@@ -330,12 +298,12 @@ export class PDFGenerator {
         hr {
             border: none;
             height: 1px;
-            background: linear-gradient(90deg, rgba(37, 99, 235, 0.3), rgba(14, 165, 233, 0.1), rgba(15, 23, 42, 0.05));
+            background: #d9d9d9;
             margin: 28px 0 18px;
         }
 
         .toc {
-            background: #f8fafc;
+            background: #f5f5f5;
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 18px;
@@ -365,7 +333,8 @@ export class PDFGenerator {
         }
 
         .toc a:hover {
-            color: var(--accent-strong);
+            color: var(--ink-900);
+            text-decoration: underline;
         }
 
         .toc .l3 {
@@ -396,17 +365,9 @@ export class PDFGenerator {
 <body>
     <div class="page">
       <section class="cover page-break-after">
-        <div>
-          <p class="eyebrow">Smart Contract Audit Report</p>
-          <h1 class="report-title">${projectName}</h1>
-          ${auditDate ? `<p class="subtitle">Audit Date: ${auditDate}</p>` : ''}
-        </div>
-        <div class="cover-meta">
-          <span class="meta-chip">Prepared by audit-cli</span>
-          <span class="meta-chip">Format: PDF</span>
-          <span class="meta-chip">Version: 1.0</span>
-        </div>
-        <div class="pill">Confidential</div>
+        <h1 class="cover-title">${projectName} Security Review</h1>
+        <p class="cover-byline">Audit by audit-cli</p>
+        ${auditDate ? `<p class="cover-date">${auditDate}</p>` : ''}
       </section>
       <section class="section toc page-break-after">
         <h2>Table of Contents</h2>
@@ -490,62 +451,91 @@ export class PDFGenerator {
     const execAsync = promisify(exec);
     
     try {
+      // Keep dependencies minimal: rely on system tools if available.
+      // Optional overrides:
+      // - AUDIT_CLI_PDF_WKHTMLTOPDF_PATH: absolute path to wkhtmltopdf
+      // - AUDIT_CLI_PDF_CHROME_PATH: absolute path to Chrome/Chromium
+      const wkhtmltopdfOverride = process.env.AUDIT_CLI_PDF_WKHTMLTOPDF_PATH;
+      const chromeOverride = process.env.AUDIT_CLI_PDF_CHROME_PATH;
+
+      const chromePrintCmd = async (chromeCmd: string): Promise<void> => {
+        // These flags disable the browser-generated header/footer (which can show file://...html).
+        // `--headless=new` is important on newer Chrome for consistent PDF output.
+        await execAsync(
+          `"${chromeCmd}" --headless=new --disable-gpu --no-pdf-header-footer --print-to-pdf-no-header --print-to-pdf="${pdfFile}" "${htmlFile}"`
+        );
+      };
+
       if (process.platform === 'darwin') {
-        // macOS: Try wkhtmltopdf first (most reliable)
+        // macOS: Try wkhtmltopdf first (typically the most reliable if installed)
         try {
-          await execAsync('which wkhtmltopdf');
-          await execAsync(`wkhtmltopdf --page-size A4 --orientation Portrait --margin-top 1cm --margin-right 1cm --margin-bottom 1cm --margin-left 1cm "${htmlFile}" "${pdfFile}"`);
+          const wkhtmltopdfCmd = wkhtmltopdfOverride ?? 'wkhtmltopdf';
+          if (wkhtmltopdfOverride) {
+            await execAsync(`test -f "${wkhtmltopdfOverride}"`);
+          } else {
+            await execAsync('which wkhtmltopdf');
+          }
+
+          await execAsync(
+            `"${wkhtmltopdfCmd}" --page-size A4 --orientation Portrait --margin-top 1cm --margin-right 1cm --margin-bottom 1cm --margin-left 1cm "${htmlFile}" "${pdfFile}"`
+          );
           console.log('✅ PDF generated successfully using wkhtmltopdf');
           return pdfFile;
-        } catch (e) {
-          console.log('⚠️  wkhtmltopdf not available, trying Chrome...');
+        } catch {
+          // fall through
         }
-        
+
         // Try Chrome on macOS
         try {
-          const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-          await execAsync(`test -f "${chromePath}"`);
-          await execAsync(`"${chromePath}" --headless --disable-gpu --print-to-pdf="${pdfFile}" --print-to-pdf-no-header "${htmlFile}"`);
+          const chromeCmd = chromeOverride ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+          await execAsync(`test -f "${chromeCmd}"`);
+          await chromePrintCmd(chromeCmd);
           console.log('✅ PDF generated successfully using Chrome headless');
           return pdfFile;
-        } catch (e) {
-          console.log('⚠️  Chrome headless failed, opening in browser...');
+        } catch {
+          // fall through
         }
-        
-        // Fallback: open in browser and instruct user
-        console.log('📖 Opening HTML file in browser. Please save as PDF manually (Cmd+P > Save as PDF)');
-        await execAsync(`open "${htmlFile}"`);
+
+        console.log('📄 PDF engine not available. HTML file created:', htmlFile);
+        console.log('💡 Open it in a browser and Print -> Save as PDF (Cmd+P). Disable "Headers and footers" to hide file://...');
         return htmlFile;
-        
+
       } else if (process.platform === 'linux') {
-        // Linux: Try Chrome/Chromium
-        const browsers = ['google-chrome', 'chromium-browser', 'chromium'];
-        
+        const browsers = chromeOverride ? [chromeOverride] : ['google-chrome', 'chromium-browser', 'chromium'];
+
         for (const browser of browsers) {
           try {
-            await execAsync(`which ${browser}`);
-            await execAsync(`"${browser}" --headless --disable-gpu --print-to-pdf="${pdfFile}" --print-to-pdf-no-header "${htmlFile}"`);
+            if (!chromeOverride) {
+              await execAsync(`which ${browser}`);
+            }
+            await chromePrintCmd(browser);
             console.log(`✅ PDF generated successfully using ${browser}`);
             return pdfFile;
-          } catch (e) {
+          } catch {
             continue;
           }
         }
-        
-        console.log('📖 Opening HTML file in browser. Please save as PDF manually (Ctrl+P > Save as PDF)');
-        await execAsync(`xdg-open "${htmlFile}"`);
+
+        console.log('📄 PDF engine not available. HTML file created:', htmlFile);
+        console.log('💡 Open it in a browser and Print -> Save as PDF (Ctrl+P). Disable "Headers and footers" to hide file://...');
         return htmlFile;
-        
+
       } else if (process.platform === 'win32') {
-        // Windows: Try Chrome
+        const chromeCmd = chromeOverride ?? 'chrome';
+
         try {
-          await execAsync('where chrome');
-          await execAsync(`chrome --headless --disable-gpu --print-to-pdf="${pdfFile}" --print-to-pdf-no-header "${htmlFile}"`);
+          if (chromeOverride) {
+            await execAsync(`if exist "${chromeOverride}" (exit 0) else (exit 1)`);
+          } else {
+            await execAsync('where chrome');
+          }
+
+          await chromePrintCmd(chromeCmd);
           console.log('✅ PDF generated successfully using Chrome headless');
           return pdfFile;
-        } catch (e) {
-          console.log('📖 Opening HTML file in browser. Please save as PDF manually (Ctrl+P > Save as PDF)');
-          await execAsync(`start "" "${htmlFile}"`);
+        } catch {
+          console.log('📄 PDF engine not available. HTML file created:', htmlFile);
+          console.log('💡 Open it in a browser and Print -> Save as PDF (Ctrl+P). Disable "Headers and footers" to hide file://...');
           return htmlFile;
         }
       }
