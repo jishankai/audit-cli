@@ -54,13 +54,14 @@ export class MythrilAnalyzer extends BaseAnalyzer {
       const allErrors: string[] = [];
 
       // Analyze each file (Mythril doesn't support directory analysis)
+      // Important: If a single file fails, we skip it and continue.
       for (const filePath of solidityFiles) {
-        try {
-          const fileDetectors = await this.analyzeFile(filePath);
-          allDetectors.push(...fileDetectors);
-        } catch (error: any) {
-          allErrors.push(`Error analyzing ${path.basename(filePath)}: ${error.message}`);
+        const { detectors, error } = await this.analyzeFile(filePath);
+        if (error) {
+          allErrors.push(`Error analyzing ${path.basename(filePath)}: ${error}`);
+          continue;
         }
+        allDetectors.push(...detectors);
       }
 
       return {
@@ -116,17 +117,23 @@ export class MythrilAnalyzer extends BaseAnalyzer {
     return files;
   }
 
-  private async analyzeFile(filePath: string): Promise<AnalyzerDetector[]> {
+  private async analyzeFile(filePath: string): Promise<{ detectors: AnalyzerDetector[]; error?: string }> {
     // Use jsonv2 format (SWC-compliant)
     // Note: Removed --solv auto as it's not valid (Mythril auto-detects solc version)
     const command = `myth analyze "${filePath}" -o jsonv2 --execution-timeout 90 2>/dev/null || true`;
 
-    const { stdout } = await execAsync(command, {
-      maxBuffer: 10 * 1024 * 1024,
-      timeout: 120000  // 2 minute max
-    });
+    try {
+      const { stdout } = await execAsync(command, {
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: 120000  // 2 minute max
+      });
 
-    return this.parseOutput(stdout, filePath);
+      return { detectors: this.parseOutput(stdout, filePath) };
+    } catch (error: any) {
+      // Ensure a failure in one file never aborts the whole Mythril run.
+      const message = error?.message ? String(error.message) : 'Unknown error';
+      return { detectors: [], error: message };
+    }
   }
 
   private parseOutput(output: string, filePath: string): AnalyzerDetector[] {
