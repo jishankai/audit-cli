@@ -18,7 +18,7 @@ export class PDFGenerator {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Smart Contract Security Audit Report</title>
+    <title>Audit Report</title>
     <style>
         :root {
             /* Monochrome palette: black / white / greys */
@@ -62,38 +62,56 @@ export class PDFGenerator {
             box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
         }
 
-        /* Cover (minimal) */
+        /* Cover - Professional & Minimal */
         .cover {
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            justify-content: space-between;
             background: #ffffff;
-            border: 1px solid var(--border-strong);
-            border-radius: 0;
-            padding: 76px 64px;
+            padding: 0;
             min-height: 740px;
+        }
+
+        .cover-header {
+            padding-top: 120px;
         }
 
         .cover-title {
             margin: 0;
-            font-size: 48px;
-            line-height: 1.08;
-            letter-spacing: -0.03em;
-            font-weight: 900;
+            font-size: 42px;
+            line-height: 1.15;
+            letter-spacing: -0.02em;
+            font-weight: 700;
             color: var(--ink-950);
+            max-width: 600px;
+        }
+
+        .cover-footer {
+            padding-bottom: 60px;
+            border-top: 2px solid var(--ink-950);
+            padding-top: 24px;
+        }
+
+        .cover-meta {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
         }
 
         .cover-byline {
-            margin: 18px 0 0;
-            font-size: 14px;
-            color: var(--muted);
-            font-weight: 700;
+            margin: 0;
+            font-size: 13px;
+            color: var(--ink-800);
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
 
         .cover-date {
-            margin: 10px 0 0;
-            font-size: 14px;
+            margin: 0;
+            font-size: 13px;
             color: var(--muted);
+            font-weight: 500;
         }
 
         .section {
@@ -365,9 +383,15 @@ export class PDFGenerator {
 <body>
     <div class="page">
       <section class="cover page-break-after">
-        <h1 class="cover-title">${projectName} Security Review</h1>
-        <p class="cover-byline">Audit by audit-cli</p>
-        ${auditDate ? `<p class="cover-date">${auditDate}</p>` : ''}
+        <div class="cover-header">
+          <h1 class="cover-title">Smart Contract Security Audit Report</h1>
+        </div>
+        <div class="cover-footer">
+          <div class="cover-meta">
+            <p class="cover-byline">${projectName}</p>
+            ${auditDate ? `<p class="cover-date">${auditDate}</p>` : '<p class="cover-date">audit-cli</p>'}
+          </div>
+        </div>
       </section>
       <section class="section toc page-break-after">
         <h2>Table of Contents</h2>

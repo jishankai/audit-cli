@@ -181,15 +181,6 @@ export class ReportGenerator {
     sections.push(report.llmAnalysis || 'Analysis pending or unavailable.');
     sections.push('');
 
-    sections.push('## Recommendations');
-    sections.push('');
-    sections.push('1. Address all Critical and High severity issues immediately');
-    sections.push('2. Review and fix Medium severity issues before deployment');
-    sections.push('3. Consider Low severity issues as best practice improvements');
-    sections.push('4. Implement comprehensive testing for all fixes');
-    sections.push('5. Consider a follow-up audit after remediations');
-    sections.push('');
-
     sections.push('---');
     sections.push('');
     sections.push('*This report was generated using audit-cli with multi-tool static analysis (Slither & Mythril) and AI-powered analysis*');
