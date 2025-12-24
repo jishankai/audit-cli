@@ -19,7 +19,7 @@
     "slither",
     "smart-contract"
   ],
-  "author": "",
+  "author": "Kai <jishankai@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",
