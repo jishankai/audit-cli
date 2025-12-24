@@ -9,7 +9,17 @@ export class PDFGenerator {
     const auditDateMatch = markdown.match(/\*\*Audit Date:\*\*\s*([^\n*]+)/);
     const projectName = projectMatch ? projectMatch[1].trim() : 'Smart Contract Audit';
     const auditDate = auditDateMatch ? auditDateMatch[1].trim() : '';
-    const baseHTML = this.addSeverityClasses(html).replace(/<h1[^>]*>[^<]*<\/h1>/i, '');
+    
+    // Extract summary data for visualization
+    const summaryMatch = markdown.match(/\| Critical \| (\d+) \|[\s\S]*?\| High\s+\| (\d+) \|[\s\S]*?\| Medium\s+\| (\d+) \|[\s\S]*?\| Low\s+\| (\d+) \|[\s\S]*?\| Info\s+\| (\d+) \|/);
+    const criticalCount = summaryMatch ? parseInt(summaryMatch[1]) : 0;
+    const highCount = summaryMatch ? parseInt(summaryMatch[2]) : 0;
+    const mediumCount = summaryMatch ? parseInt(summaryMatch[3]) : 0;
+    const lowCount = summaryMatch ? parseInt(summaryMatch[4]) : 0;
+    const infoCount = summaryMatch ? parseInt(summaryMatch[5]) : 0;
+    const totalCount = criticalCount + highCount + mediumCount + lowCount + infoCount;
+    
+    const baseHTML = this.addSeverityClasses(html, criticalCount, highCount, mediumCount, lowCount, infoCount, totalCount).replace(/<h1[^>]*>[^<]*<\/h1>/i, '');
     const { htmlWithAnchors, toc } = this.addAnchorsAndTOC(baseHTML);
     
     return `
@@ -21,16 +31,15 @@ export class PDFGenerator {
     <title>Audit Report</title>
     <style>
         :root {
-            /* Monochrome palette: black / white / greys */
-            --ink-950: #0a0a0a;
-            --ink-900: #111111;
-            --ink-800: #1a1a1a;
-            --muted: #595959;
-            --border: #d9d9d9;
-            --border-strong: #bfbfbf;
-            --card: #f2f2f2;
-            --accent: #111111;
-            --accent-strong: #111111;
+            /* Monochrome palette: black, white, gray only */
+            --black: #000000;
+            --dark-gray: #333333;
+            --medium-gray: #666666;
+            --light-gray: #999999;
+            --very-light-gray: #cccccc;
+            --border-gray: #dddddd;
+            --bg-gray: #f5f5f5;
+            --white: #ffffff;
         }
 
         * {
@@ -44,74 +53,84 @@ export class PDFGenerator {
         }
 
         body {
-            font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            font-size: 15px;
-            line-height: 1.7;
-            color: var(--ink-800);
-            background: #f2f2f2;
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10pt;
+            line-height: 1.6;
+            color: var(--black);
+            background: var(--white);
             margin: 0;
-            padding: 28px;
+            padding: 20px;
         }
 
         .page {
-            max-width: 1050px;
+            max-width: 900px;
             margin: 0 auto;
-            background: #ffffff;
-            padding: 42px 46px;
-            border-radius: 16px;
-            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+            background: var(--white);
+            padding: 40px;
         }
 
-        /* Cover - Professional & Minimal */
+        /* Cover - Simple and Clean */
         .cover {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            background: #ffffff;
-            padding: 0;
-            min-height: 740px;
+            padding: 100px 0;
+            min-height: 700px;
+            border-bottom: 3px solid var(--black);
         }
 
         .cover-header {
-            padding-top: 120px;
+            margin-bottom: 200px;
+        }
+
+        .cover-subtitle {
+            margin: 0 0 10px;
+            font-size: 11pt;
+            font-weight: normal;
+            color: var(--medium-gray);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
         }
 
         .cover-title {
             margin: 0;
-            font-size: 42px;
-            line-height: 1.15;
-            letter-spacing: -0.02em;
-            font-weight: 700;
-            color: var(--ink-950);
-            max-width: 600px;
+            font-size: 36pt;
+            line-height: 1.2;
+            font-weight: bold;
+            color: var(--black);
+        }
+
+        .cover-description {
+            margin: 20px 0 0;
+            font-size: 11pt;
+            line-height: 1.6;
+            color: var(--medium-gray);
+            max-width: 500px;
         }
 
         .cover-footer {
-            padding-bottom: 60px;
-            border-top: 2px solid var(--ink-950);
-            padding-top: 24px;
+            border-top: 1px solid var(--border-gray);
+            padding-top: 20px;
         }
 
         .cover-meta {
             display: flex;
             justify-content: space-between;
-            align-items: flex-end;
+            align-items: baseline;
         }
 
         .cover-byline {
             margin: 0;
-            font-size: 13px;
-            color: var(--ink-800);
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
+            font-size: 11pt;
+            color: var(--black);
+            font-weight: bold;
         }
 
         .cover-date {
             margin: 0;
-            font-size: 13px;
-            color: var(--muted);
-            font-weight: 500;
+            font-size: 10pt;
+            color: var(--medium-gray);
+        }
+
+        .cover-badge {
+            display: none;
         }
 
         .section {
@@ -125,23 +144,30 @@ export class PDFGenerator {
         }
 
         h1, h2, h3, h4 {
-            color: var(--ink-900);
+            color: var(--black);
             page-break-after: avoid;
             margin: 0;
-            letter-spacing: -0.01em;
-            font-weight: 700;
+            font-weight: bold;
         }
 
         h2 {
-            font-size: 22px;
-            margin-top: 26px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid var(--border-strong);
+            font-size: 16pt;
+            margin-top: 30px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--black);
         }
 
         h3 {
-            font-size: 17px;
-            margin-top: 18px;
+            font-size: 12pt;
+            margin-top: 20px;
+            margin-bottom: 8px;
+        }
+
+        h4 {
+            font-size: 10pt;
+            margin-top: 14px;
+            margin-bottom: 6px;
         }
 
         p {
@@ -165,72 +191,61 @@ export class PDFGenerator {
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 12px 0 18px;
-            border: 1px solid var(--border-strong);
-            border-radius: 10px;
-            overflow: hidden;
+            margin: 12px 0 20px;
+            border: 1px solid var(--border-gray);
         }
 
         th, td {
-            padding: 12px 14px;
+            padding: 10px 12px;
             text-align: left;
-            border-bottom: 1px solid var(--border);
+            border: 1px solid var(--border-gray);
+            font-size: 9pt;
         }
 
         th {
-            background: #f0f0f0;
-            font-weight: 700;
-            font-size: 13px;
-            letter-spacing: 0.02em;
-            text-transform: uppercase;
-            color: var(--ink-800);
+            background: var(--bg-gray);
+            font-weight: bold;
+            color: var(--black);
         }
 
         tr:nth-child(even) td {
-            background: #fafafa;
+            background: var(--white);
         }
 
-        tr:last-child td {
-            border-bottom: none;
-        }
-
-        table:first-of-type {
-            background: #f5f5f5;
-            border-color: var(--border);
+        tr:nth-child(odd) td {
+            background: var(--white);
         }
 
         code {
-            background-color: #f2f2f2;
-            padding: 2px 6px;
-            border-radius: 6px;
-            font-family: 'SFMono-Regular', 'Menlo', 'Ubuntu Mono', monospace;
-            font-size: 0.95em;
+            background-color: var(--bg-gray);
+            padding: 2px 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 9pt;
+            color: var(--black);
         }
 
         pre {
-            background: #111111;
-            color: #eeeeee;
-            padding: 16px 18px;
-            border-radius: 10px;
+            background: var(--bg-gray);
+            color: var(--black);
+            padding: 12px;
+            border: 1px solid var(--border-gray);
             overflow-x: auto;
-            border: 1px solid #333333;
             page-break-inside: avoid;
-            font-size: 0.93em;
+            font-size: 8pt;
+            line-height: 1.4;
         }
 
         pre code {
             background: transparent;
-            color: inherit;
             padding: 0;
         }
 
         blockquote {
-            border-left: 4px solid #111111;
-            margin: 12px 0 18px;
-            padding-left: 16px;
-            color: var(--muted);
-            background: #f5f5f5;
-            border-radius: 0 8px 8px 0;
+            border-left: 3px solid var(--black);
+            margin: 12px 0;
+            padding: 8px 16px;
+            color: var(--dark-gray);
+            background: var(--bg-gray);
         }
 
         .severity-critical,
@@ -238,43 +253,38 @@ export class PDFGenerator {
         .severity-medium,
         .severity-low,
         .severity-info {
-            display: inline-flex;
-            align-items: center;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-weight: 700;
-            font-size: 12px;
-            border: 1px solid transparent;
+            display: inline-block;
+            padding: 3px 8px;
+            font-weight: bold;
+            font-size: 9pt;
+            border: 1px solid var(--black);
+            background: var(--white);
+            color: var(--black);
         }
-
+        
         .severity-critical {
-            color: #111111;
-            background: #efefef;
-            border-color: #111111;
+            background: var(--black);
+            color: var(--white);
         }
         
         .severity-high {
-            color: #111111;
-            background: #f5f5f5;
-            border-color: #444444;
+            background: var(--dark-gray);
+            color: var(--white);
         }
         
         .severity-medium {
-            color: #111111;
-            background: #fafafa;
-            border-color: #777777;
+            background: var(--medium-gray);
+            color: var(--white);
         }
         
         .severity-low {
-            color: #111111;
-            background: #ffffff;
-            border-color: #aaaaaa;
+            background: var(--light-gray);
+            color: var(--black);
         }
         
         .severity-info {
-            color: #111111;
-            background: #ffffff;
-            border-color: #cccccc;
+            background: var(--white);
+            color: var(--black);
         }
 
         .page-break {
@@ -290,75 +300,168 @@ export class PDFGenerator {
         }
         
         .summary-box {
-            background-color: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 18px;
-            margin: 18px 0;
+            background: var(--white);
+            border: 1px solid var(--border-gray);
+            padding: 16px;
+            margin: 16px 0;
         }
         
         .finding {
-            margin: 14px 0 22px;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 18px 18px 14px;
+            margin: 16px 0;
+            border: 1px solid var(--border-gray);
+            padding: 12px;
             page-break-inside: avoid;
-            background: #ffffff;
-            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+            background: var(--white);
         }
         
         .finding-header {
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 10px;
-            margin-bottom: 12px;
+            border-bottom: 1px solid var(--border-gray);
+            padding-bottom: 8px;
+            margin-bottom: 10px;
         }
 
         hr {
             border: none;
-            height: 1px;
-            background: #d9d9d9;
-            margin: 28px 0 18px;
+            border-top: 1px solid var(--border-gray);
+            margin: 20px 0;
         }
 
         .toc {
-            background: #f5f5f5;
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 18px;
-            margin-top: 18px;
+            background: var(--white);
+            border: 1px solid var(--border-gray);
+            padding: 20px;
+            margin-top: 0;
         }
 
         .toc h2 {
             margin-top: 0;
-            border-bottom: none;
-            padding-bottom: 0;
+            margin-bottom: 16px;
         }
 
-        .toc ol {
+        .toc > ol {
             list-style: none;
-            padding: 0;
+            padding-left: 0;
             margin: 10px 0 0;
         }
 
         .toc li {
             margin: 6px 0;
-            font-weight: 600;
+            line-height: 1.5;
         }
 
         .toc a {
-            color: var(--ink-900);
+            color: var(--black);
             text-decoration: none;
         }
 
-        .toc a:hover {
-            color: var(--ink-900);
-            text-decoration: underline;
+        .toc-sub {
+            list-style: none;
+            padding-left: 20px;
+            margin: 4px 0;
         }
 
-        .toc .l3 {
-            padding-left: 14px;
-            font-weight: 500;
-            color: var(--muted);
+        .toc-sub li {
+            margin: 3px 0;
+            font-size: 9pt;
+            color: var(--medium-gray);
+        }
+
+        .toc-sub li::before {
+            content: '- ';
+            color: var(--medium-gray);
+        }
+
+        /* Summary Chart Styles */
+        .summary-chart {
+            background: var(--white);
+            border: 1px solid var(--border-gray);
+            padding: 16px;
+            margin: 16px 0;
+        }
+
+        .chart-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-gray);
+        }
+
+        .chart-header h3 {
+            margin: 0;
+            font-size: 12pt;
+        }
+
+        .total-badge {
+            background: var(--black);
+            color: var(--white);
+            padding: 4px 12px;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+
+        .chart-grid {
+            display: table;
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .chart-row {
+            display: table-row;
+        }
+
+        .severity-label,
+        .bar-container,
+        .count-badge {
+            display: table-cell;
+            padding: 6px 8px;
+            vertical-align: middle;
+            border-bottom: 1px solid var(--very-light-gray);
+        }
+
+        .severity-label {
+            width: 100px;
+            font-weight: bold;
+            font-size: 9pt;
+        }
+
+        .bar-container {
+            background: var(--bg-gray);
+            border: 1px solid var(--border-gray);
+            height: 24px;
+            position: relative;
+        }
+
+        .bar {
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+        }
+
+        .bar.critical { background: var(--black); }
+        .bar.high { background: var(--dark-gray); }
+        .bar.medium { background: var(--medium-gray); }
+        .bar.low { background: var(--light-gray); }
+        .bar.info { background: var(--very-light-gray); }
+
+        .count-badge {
+            text-align: right;
+            font-weight: bold;
+            font-size: 10pt;
+            width: 50px;
+        }
+
+        .no-findings {
+            text-align: center;
+            padding: 30px 20px;
+        }
+
+        .success-message {
+            font-size: 11pt;
+            font-weight: bold;
+            margin: 10px 0 0;
         }
         
         @media print {
@@ -384,12 +487,13 @@ export class PDFGenerator {
     <div class="page">
       <section class="cover page-break-after">
         <div class="cover-header">
-          <h1 class="cover-title">Smart Contract Security Audit Report</h1>
+          <p class="cover-subtitle">Smart Contract Security</p>
+          <h1 class="cover-title">Audit Report</h1>
         </div>
         <div class="cover-footer">
           <div class="cover-meta">
             <p class="cover-byline">${projectName}</p>
-            ${auditDate ? `<p class="cover-date">${auditDate}</p>` : '<p class="cover-date">audit-cli</p>'}
+            ${auditDate ? `<p class="cover-date">${auditDate}</p>` : '<p class="cover-date">Generated by audit-cli</p>'}
           </div>
         </div>
       </section>
@@ -433,24 +537,132 @@ export class PDFGenerator {
       return `<h${level} id="${id}"${attrsString}>${title}</h${level}>`;
     });
 
-    const toc = tocItems.map(item => {
-      const levelClass = item.level === 3 ? 'l3' : '';
-      return `<li class="${levelClass}"><a href="#${item.id}">${item.text}</a></li>`;
-    }).join('\n');
+    // Build nested TOC structure
+    let toc = '';
+    let h2Count = 0;
+    let currentH2HasChildren = false;
+    let childrenList = '';
+    
+    for (let i = 0; i < tocItems.length; i++) {
+      const item = tocItems[i];
+      
+      if (item.level === 2) {
+        // Close previous H2's children list if exists
+        if (currentH2HasChildren && childrenList) {
+          toc += `<ol class="toc-sub">${childrenList}</ol></li>\n`;
+          childrenList = '';
+          currentH2HasChildren = false;
+        } else if (h2Count > 0) {
+          toc += `</li>\n`;
+        }
+        
+        h2Count++;
+        toc += `<li><a href="#${item.id}">${item.text}</a>`;
+        
+        // Check if next item is H3 (child)
+        if (i + 1 < tocItems.length && tocItems[i + 1].level === 3) {
+          currentH2HasChildren = true;
+        } else {
+          toc += `</li>\n`;
+        }
+      } else if (item.level === 3 && currentH2HasChildren) {
+        childrenList += `<li><a href="#${item.id}">${item.text}</a></li>\n`;
+      }
+    }
+    
+    // Close last item
+    if (currentH2HasChildren && childrenList) {
+      toc += `<ol class="toc-sub">${childrenList}</ol></li>\n`;
+    } else if (h2Count > 0) {
+      toc += `</li>\n`;
+    }
 
     return { htmlWithAnchors, toc };
   }
 
-  private addSeverityClasses(html: string): string {
+  private generateSummaryChart(critical: number, high: number, medium: number, low: number, info: number, total: number): string {
+    if (total === 0) {
+      return `
+        <div class="summary-chart">
+          <div class="chart-header">
+            <h3>Findings Overview</h3>
+            <div class="total-badge">0 Issues</div>
+          </div>
+          <div class="no-findings">
+            <p class="success-message">✓ No security issues detected</p>
+          </div>
+        </div>
+      `;
+    }
+
+    const maxValue = Math.max(critical, high, medium, low, info, 1);
+    const getBarWidth = (count: number) => Math.round((count / maxValue) * 100);
+    
+    return `
+      <div class="summary-chart">
+        <div class="chart-header">
+          <h3>Findings Overview</h3>
+          <div class="total-badge">${total} Total</div>
+        </div>
+        <div class="chart-grid">
+          <div class="chart-row">
+            <div class="severity-label">Critical</div>
+            <div class="bar-container">
+              <div class="bar critical" style="width: ${getBarWidth(critical)}%"></div>
+            </div>
+            <div class="count-badge">${critical}</div>
+          </div>
+          <div class="chart-row">
+            <div class="severity-label">High</div>
+            <div class="bar-container">
+              <div class="bar high" style="width: ${getBarWidth(high)}%"></div>
+            </div>
+            <div class="count-badge">${high}</div>
+          </div>
+          <div class="chart-row">
+            <div class="severity-label">Medium</div>
+            <div class="bar-container">
+              <div class="bar medium" style="width: ${getBarWidth(medium)}%"></div>
+            </div>
+            <div class="count-badge">${medium}</div>
+          </div>
+          <div class="chart-row">
+            <div class="severity-label">Low</div>
+            <div class="bar-container">
+              <div class="bar low" style="width: ${getBarWidth(low)}%"></div>
+            </div>
+            <div class="count-badge">${low}</div>
+          </div>
+          <div class="chart-row">
+            <div class="severity-label">Info</div>
+            <div class="bar-container">
+              <div class="bar info" style="width: ${getBarWidth(info)}%"></div>
+            </div>
+            <div class="count-badge">${info}</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private addSeverityClasses(html: string, critical: number, high: number, medium: number, low: number, info: number, total: number): string {
     // Add severity classes for styling
     let processedHTML = html;
     
+    // Replace severity badges
     processedHTML = processedHTML.replace(
         /\*\*Severity:\*\*\s*(Critical|High|Medium|Low|Info)/g,
         (_, severity) => {
             const className = `severity-${severity.toLowerCase()}`;
             return `<strong>Severity:</strong> <span class="${className}">${severity}</span>`;
         }
+    );
+    
+    // Insert summary chart after Executive Summary heading
+    const chart = this.generateSummaryChart(critical, high, medium, low, info, total);
+    processedHTML = processedHTML.replace(
+      /(<h2[^>]*>Executive Summary<\/h2>)/i,
+      `$1\n${chart}`
     );
     
     return processedHTML;

@@ -43,13 +43,17 @@ async function main() {
     const orchestrator = new AuditOrchestrator();
     await orchestrator.runAudit(config);
 
-    // Success message
+    // Success message with next steps
     const successBox = boxen(
       chalk.green.bold('✅ Audit Completed Successfully!\n\n') +
-      chalk.gray('All reports have been generated and saved.'),
+      chalk.white('Next Steps:\n') +
+      chalk.gray('  1. Review the generated report(s) in the ') + chalk.cyan('./reports/') + chalk.gray(' directory\n') +
+      chalk.gray('  2. Address Critical and High severity findings first\n') +
+      chalk.gray('  3. Validate findings with manual code review\n') +
+      chalk.gray('  4. Consider additional security measures as recommended'),
       {
-        padding: 0.5,
-        margin: { top: 1, bottom: 1, left: 0, right: 0 },
+        padding: 1,
+        margin: { top: 0, bottom: 1, left: 0, right: 0 },
         borderStyle: 'round',
         borderColor: 'green'
       }

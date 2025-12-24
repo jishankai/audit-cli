@@ -32,14 +32,21 @@ export class AuditOrchestrator {
 
   async runAudit(config: AuditConfig): Promise<void> {
     let spinner: Ora | undefined;
+    const startTime = Date.now();
 
     try {
       // Display configuration summary
       this.cli.displayConfigSummary(config);
 
+      console.log(chalk.cyan.bold('🚀 Starting Audit Process'));
+      console.log(chalk.gray('─'.repeat(70)) + '\n');
+
       // Step 1: Fetch source code
+      console.log(chalk.cyan.bold('[1/5] Source Code Fetching'));
       spinner = ora({
-        text: chalk.cyan('Fetching source code...'),
+        text: config.sourceType === 'github' 
+          ? chalk.gray(`Cloning repository from ${chalk.white(config.sourcePath)}`)
+          : chalk.gray(`Reading local files from ${chalk.white(config.sourcePath)}`),
         spinner: 'dots',
         color: 'cyan'
       }).start();
@@ -50,38 +57,52 @@ export class AuditOrchestrator {
         config.targetFile
       );
       
-      spinner.succeed(chalk.green('✓ Source code fetched successfully'));
-
       const isDirectory = (await fs.stat(targetPath)).isDirectory();
       const solidityFiles = isDirectory
         ? await this.fetcher.listSolidityFiles(targetPath)
         : [targetPath];
 
-      console.log(chalk.blue('ℹ') + chalk.gray(` Found ${chalk.white.bold(solidityFiles.length)} Solidity file(s) to audit\n`));
+      spinner.succeed(chalk.green(`✓ Source code ready - ${chalk.bold(solidityFiles.length)} Solidity file(s) found`));
+      
+      // Display file list for transparency
+      if (solidityFiles.length <= 10) {
+        console.log(chalk.gray('  Files to audit:'));
+        solidityFiles.forEach(file => {
+          console.log(chalk.gray(`    • ${path.basename(file)}`));
+        });
+      } else {
+        console.log(chalk.gray(`  Files to audit: ${solidityFiles.slice(0, 5).map(f => path.basename(f)).join(', ')} and ${solidityFiles.length - 5} more...`));
+      }
+      console.log();
 
       // Step 2: Static Analysis
+      console.log(chalk.cyan.bold('[2/5] Static Analysis'));
+      console.log(chalk.gray(`  Running ${this.analyzers.length} analysis tool(s) on ${solidityFiles.length} file(s)...`));
+      
       spinner = ora({
-        text: chalk.cyan('Running static analysis tools (Slither + Mythril)...'),
+        text: chalk.gray('Initializing analyzers...'),
         spinner: 'dots',
         color: 'cyan'
       }).start();
       
-      const aggregatedResult = await this.runAllAnalyzers(targetPath);
+      const aggregatedResult = await this.runAllAnalyzers(targetPath, spinner);
       this.displayAnalyzerResults(aggregatedResult, spinner);
+      console.log();
 
       // Step 3: AI Analysis with progress bar
+      console.log(chalk.cyan.bold('[3/5] AI-Powered Vulnerability Detection'));
       const aiProvider = this.llmAuditor.getProviderName();
-      console.log(chalk.cyan.bold(`\n🤖 AI-Powered Analysis (${aiProvider})`));
+      console.log(chalk.gray(`  Analyzing ${solidityFiles.length} file(s) with ${aiProvider} for ${config.vulnerabilityChecks.length} vulnerability types...`));
       console.log(chalk.gray('─'.repeat(70)));
       
       const progressBar = new cliProgress.SingleBar({
-        format: chalk.cyan('{bar}') + ' | {percentage}% | {value}/{total} files | {filename}',
+        format: '  ' + chalk.cyan('{bar}') + ' | {percentage}% | {value}/{total} files | {status}',
         barCompleteChar: '\u2588',
         barIncompleteChar: '\u2591',
         hideCursor: true
       });
 
-      progressBar.start(solidityFiles.length, 0, { filename: 'Starting...' });
+      progressBar.start(solidityFiles.length, 0, { status: 'Preparing analysis...' });
       
       const allFindings: VulnerabilityFinding[] = [];
 
@@ -90,7 +111,9 @@ export class AuditOrchestrator {
         const contractCode = await fs.readFile(solidityFile, 'utf-8');
         const fileName = path.basename(solidityFile);
         
-        progressBar.update(i, { filename: fileName });
+        progressBar.update(i, { 
+          status: `Analyzing ${chalk.white(fileName)}...` 
+        });
         
         const findings = await this.llmAuditor.auditContract(
           contractCode,
@@ -108,18 +131,25 @@ export class AuditOrchestrator {
         });
 
         allFindings.push(...findings);
+        
+        progressBar.update(i + 1, { 
+          status: `Completed ${chalk.white(fileName)} (${findings.length} findings)` 
+        });
       }
 
-      progressBar.update(solidityFiles.length, { filename: 'Completed' });
       progressBar.stop();
 
       // Merge similar findings
       const mergedFindings = this.mergeFindings(allFindings);
-      console.log(chalk.green(`✓ AI analysis completed - found ${chalk.bold(mergedFindings.length)} unique findings\n`));
+      console.log(chalk.green(`✓ AI analysis completed - ${chalk.bold(allFindings.length)} total findings, ${chalk.bold(mergedFindings.length)} unique issues identified`));
+      console.log();
 
       // Step 4: Comprehensive Analysis
+      console.log(chalk.cyan.bold('[4/5] Comprehensive Analysis & Summary'));
       spinner = ora({
-        text: chalk.cyan('Generating comprehensive analysis...'),
+        text: chalk.gray(solidityFiles.length === 1 
+          ? 'Generating detailed contract analysis...'
+          : `Generating project-wide summary (${mergedFindings.length} unique findings)...`),
         spinner: 'dots',
         color: 'cyan'
       }).start();
@@ -129,6 +159,7 @@ export class AuditOrchestrator {
         : await this.llmAuditor.generateProjectSummary(mergedFindings, aggregatedResult);
       
       spinner.succeed(chalk.green('✓ Comprehensive analysis completed'));
+      console.log();
 
       const report: AuditReport = {
         projectName: path.basename(config.sourcePath),
@@ -140,8 +171,10 @@ export class AuditOrchestrator {
       };
 
       // Step 5: Generate Reports
+      console.log(chalk.cyan.bold('[5/5] Report Generation'));
+      const formatNames = config.reportFormats?.map(f => f.toUpperCase()).join(', ') || 'MARKDOWN, JSON';
       spinner = ora({
-        text: chalk.cyan('Generating audit reports...'),
+        text: chalk.gray(`Generating ${formatNames} report(s)...`),
         spinner: 'dots',
         color: 'cyan'
       }).start();
@@ -149,15 +182,28 @@ export class AuditOrchestrator {
       const reportPaths = await this.reportGenerator.generateReport(report, config.outputPath, config.reportFormats);
       const reportFileNames = reportPaths.map(p => path.basename(p));
       
-      spinner.succeed(chalk.green(`✓ Report(s) generated: ${reportFileNames.join(', ')}`));
+      spinner.succeed(chalk.green(`✓ ${reportPaths.length} report(s) generated successfully`));
+      console.log();
+
+      // Calculate elapsed time
+      const elapsedSeconds = Math.round((Date.now() - startTime) / 1000);
+      const minutes = Math.floor(elapsedSeconds / 60);
+      const seconds = elapsedSeconds % 60;
+      const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+      console.log(chalk.gray('─'.repeat(70)));
+      console.log(chalk.cyan.bold('⏱️  Audit completed in ') + chalk.white.bold(timeStr));
+      console.log(chalk.gray('─'.repeat(70)) + '\n');
 
       // Display beautiful summary
       this.cli.displayAuditSummary(report.summary);
 
       // Display report locations
-      console.log(chalk.cyan.bold('📁 Report Locations:'));
+      console.log(chalk.cyan.bold('📁 Generated Reports:'));
       reportPaths.forEach(rp => {
-        console.log(chalk.gray('  • ') + chalk.white(rp));
+        const format = path.extname(rp).toUpperCase().slice(1);
+        const icon = format === 'PDF' ? '📄' : format === 'JSON' ? '📊' : '📝';
+        console.log(chalk.gray(`  ${icon} `) + chalk.white(rp));
       });
       console.log();
 
@@ -381,18 +427,34 @@ export class AuditOrchestrator {
     }
   }
 
-  private async runAllAnalyzers(targetPath: string): Promise<AggregatedAnalyzerResult> {
-    // Run all analyzers in parallel with Promise.all
+  private async runAllAnalyzers(targetPath: string, spinner?: Ora): Promise<AggregatedAnalyzerResult> {
+    // Run all analyzers with individual progress updates
     const results = await Promise.all(
-      this.analyzers.map(analyzer =>
-        analyzer.analyze(targetPath).catch(error => ({
-          tool: analyzer.getToolName().toLowerCase() as any,
-          success: false,
-          errors: [error.message],
-          detectors: [],
-          supplementaryData: {}
-        }))
-      )
+      this.analyzers.map(async analyzer => {
+        const toolName = analyzer.getToolName();
+        if (spinner) {
+          spinner.text = chalk.gray(`Running ${chalk.white(toolName)} analysis...`);
+        }
+        
+        try {
+          const result = await analyzer.analyze(targetPath);
+          if (spinner) {
+            spinner.text = chalk.gray(`${chalk.white(toolName)} completed - ${result.detectors.length} issues found`);
+          }
+          return result;
+        } catch (error: any) {
+          if (spinner) {
+            spinner.text = chalk.gray(`${chalk.white(toolName)} failed - continuing with other tools`);
+          }
+          return {
+            tool: toolName.toLowerCase() as any,
+            success: false,
+            errors: [error.message],
+            detectors: [],
+            supplementaryData: {}
+          };
+        }
+      })
     );
 
     return {
@@ -405,25 +467,33 @@ export class AuditOrchestrator {
   }
 
   private displayAnalyzerResults(aggregated: AggregatedAnalyzerResult, spinner: any): void {
-    const messages = aggregated.results.map(result => {
-      const toolName = result.tool.charAt(0).toUpperCase() + result.tool.slice(1);
-      return result.success
-        ? `${toolName}: ${result.detectors.length} issue(s)`
-        : `${toolName}: Failed`;
-    });
-
+    const totalIssues = aggregated.allDetectors.length;
+    
     if (aggregated.successCount === aggregated.totalTools) {
-      spinner.succeed(`Static analysis completed - ${messages.join(' | ')}`);
+      spinner.succeed(chalk.green(`✓ All ${aggregated.totalTools} analyzer(s) completed - ${chalk.bold(totalIssues)} total issues detected`));
     } else if (aggregated.successCount > 0) {
-      spinner.warn(`Static analysis partially completed - ${messages.join(' | ')}`);
+      spinner.warn(chalk.yellow(`⚠ ${aggregated.successCount}/${aggregated.totalTools} analyzer(s) completed - ${chalk.bold(totalIssues)} issues detected`));
     } else {
-      spinner.fail(`Static analysis failed`);
+      spinner.fail(chalk.red(`✗ All analyzers failed - proceeding with AI-only analysis`));
     }
+
+    // Display individual tool results
+    console.log(chalk.gray('  Tool Results:'));
+    aggregated.results.forEach(result => {
+      const toolName = result.tool.charAt(0).toUpperCase() + result.tool.slice(1);
+      if (result.success) {
+        const icon = result.detectors.length > 0 ? '⚠️' : '✅';
+        console.log(chalk.gray(`    ${icon} ${toolName}: `) + chalk.white(`${result.detectors.length} issue(s)`));
+      } else {
+        console.log(chalk.gray(`    ❌ ${toolName}: `) + chalk.red('Failed'));
+      }
+    });
 
     // Display individual errors if any
     if (aggregated.errors.length > 0) {
+      console.log(chalk.gray('  Errors:'));
       aggregated.errors.forEach(error => {
-        this.cli.displayWarning(error);
+        console.log(chalk.gray('    • ') + chalk.yellow(error));
       });
     }
   }

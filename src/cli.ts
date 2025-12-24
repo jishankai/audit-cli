@@ -164,7 +164,7 @@ export class InteractiveCLI {
     const infoBox = boxen(
       chalk.white.bold('Smart Contract Security Audit Tool\n\n') +
       chalk.gray('🔍 Multi-Tool Static Analysis: ') + chalk.cyan('Slither + Mythril\n') +
-      chalk.gray('🤖 AI-Powered Analysis: ') + chalk.cyan('GPT / Claude\n') +
+      chalk.gray('😊 AI-Powered Analysis: ') + chalk.cyan('GPT / Claude\n') +
       chalk.gray('📊 42 Vulnerability Types\n') +
       chalk.gray('📝 Multiple Report Formats'),
       {
