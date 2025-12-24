@@ -127,7 +127,9 @@ export class ReportGenerator {
 
     const staticAnalysis = report.staticAnalysis;
     sections.push(`**Tools Run:** ${staticAnalysis.totalTools}`);
+    sections.push('');
     sections.push(`**Successful:** ${staticAnalysis.successCount}`);
+    sections.push('');
     sections.push(`**Total Issues Found:** ${staticAnalysis.allDetectors.length}`);
     sections.push('');
 
@@ -194,12 +196,15 @@ export class ReportGenerator {
     lines.push(`### ${number}. ${finding.title}`);
     lines.push('');
     lines.push(`**Type:** ${finding.type}`);
+    lines.push('');
     lines.push(`**Severity:** ${finding.severity}`);
+    lines.push('');
 
     // Show affected files if available
     if (finding.affectedFiles && finding.affectedFiles.length > 0) {
       const fileList = finding.affectedFiles.join(', ');
       lines.push(`**Affected File(s):** ${fileList}`);
+      lines.push('');
     }
 
     // Show occurrences if this is a merged finding

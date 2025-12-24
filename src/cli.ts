@@ -22,8 +22,8 @@ export class InteractiveCLI {
         name: 'sourceType',
         message: 'Select source type:',
         choices: [
-          { name: 'GitHub Repository', value: SourceType.GITHUB },
-          { name: 'Local Directory/File', value: SourceType.LOCAL }
+          { name: 'Local', value: SourceType.LOCAL },
+          { name: 'GitHub Repository', value: SourceType.GITHUB }
         ]
       }
     ]);

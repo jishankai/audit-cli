@@ -10,16 +10,7 @@ export class PDFGenerator {
     const projectName = projectMatch ? projectMatch[1].trim() : 'Smart Contract Audit';
     const auditDate = auditDateMatch ? auditDateMatch[1].trim() : '';
     
-    // Extract summary data for visualization
-    const summaryMatch = markdown.match(/\| Critical \| (\d+) \|[\s\S]*?\| High\s+\| (\d+) \|[\s\S]*?\| Medium\s+\| (\d+) \|[\s\S]*?\| Low\s+\| (\d+) \|[\s\S]*?\| Info\s+\| (\d+) \|/);
-    const criticalCount = summaryMatch ? parseInt(summaryMatch[1]) : 0;
-    const highCount = summaryMatch ? parseInt(summaryMatch[2]) : 0;
-    const mediumCount = summaryMatch ? parseInt(summaryMatch[3]) : 0;
-    const lowCount = summaryMatch ? parseInt(summaryMatch[4]) : 0;
-    const infoCount = summaryMatch ? parseInt(summaryMatch[5]) : 0;
-    const totalCount = criticalCount + highCount + mediumCount + lowCount + infoCount;
-    
-    const baseHTML = this.addSeverityClasses(html, criticalCount, highCount, mediumCount, lowCount, infoCount, totalCount).replace(/<h1[^>]*>[^<]*<\/h1>/i, '');
+    const baseHTML = this.addSeverityClasses(html).replace(/<h1[^>]*>[^<]*<\/h1>/i, '');
     const { htmlWithAnchors, toc } = this.addAnchorsAndTOC(baseHTML);
     
     return `
@@ -73,7 +64,6 @@ export class PDFGenerator {
         .cover {
             padding: 100px 0;
             min-height: 700px;
-            border-bottom: 3px solid var(--black);
         }
 
         .cover-header {
@@ -200,6 +190,7 @@ export class PDFGenerator {
             text-align: left;
             border: 1px solid var(--border-gray);
             font-size: 9pt;
+            text-align: center;
         }
 
         th {
@@ -371,99 +362,6 @@ export class PDFGenerator {
             color: var(--medium-gray);
         }
 
-        /* Summary Chart Styles */
-        .summary-chart {
-            background: var(--white);
-            border: 1px solid var(--border-gray);
-            padding: 16px;
-            margin: 16px 0;
-        }
-
-        .chart-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 1px solid var(--border-gray);
-        }
-
-        .chart-header h3 {
-            margin: 0;
-            font-size: 12pt;
-        }
-
-        .total-badge {
-            background: var(--black);
-            color: var(--white);
-            padding: 4px 12px;
-            font-weight: bold;
-            font-size: 10pt;
-        }
-
-        .chart-grid {
-            display: table;
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .chart-row {
-            display: table-row;
-        }
-
-        .severity-label,
-        .bar-container,
-        .count-badge {
-            display: table-cell;
-            padding: 6px 8px;
-            vertical-align: middle;
-            border-bottom: 1px solid var(--very-light-gray);
-        }
-
-        .severity-label {
-            width: 100px;
-            font-weight: bold;
-            font-size: 9pt;
-        }
-
-        .bar-container {
-            background: var(--bg-gray);
-            border: 1px solid var(--border-gray);
-            height: 24px;
-            position: relative;
-        }
-
-        .bar {
-            height: 100%;
-            position: absolute;
-            left: 0;
-            top: 0;
-        }
-
-        .bar.critical { background: var(--black); }
-        .bar.high { background: var(--dark-gray); }
-        .bar.medium { background: var(--medium-gray); }
-        .bar.low { background: var(--light-gray); }
-        .bar.info { background: var(--very-light-gray); }
-
-        .count-badge {
-            text-align: right;
-            font-weight: bold;
-            font-size: 10pt;
-            width: 50px;
-        }
-
-        .no-findings {
-            text-align: center;
-            padding: 30px 20px;
-        }
-
-        .success-message {
-            font-size: 11pt;
-            font-weight: bold;
-            margin: 10px 0 0;
-        }
-        
         @media print {
             body {
                 background: #ffffff;
@@ -579,73 +477,7 @@ export class PDFGenerator {
 
     return { htmlWithAnchors, toc };
   }
-
-  private generateSummaryChart(critical: number, high: number, medium: number, low: number, info: number, total: number): string {
-    if (total === 0) {
-      return `
-        <div class="summary-chart">
-          <div class="chart-header">
-            <h3>Findings Overview</h3>
-            <div class="total-badge">0 Issues</div>
-          </div>
-          <div class="no-findings">
-            <p class="success-message">✓ No security issues detected</p>
-          </div>
-        </div>
-      `;
-    }
-
-    const maxValue = Math.max(critical, high, medium, low, info, 1);
-    const getBarWidth = (count: number) => Math.round((count / maxValue) * 100);
-    
-    return `
-      <div class="summary-chart">
-        <div class="chart-header">
-          <h3>Findings Overview</h3>
-          <div class="total-badge">${total} Total</div>
-        </div>
-        <div class="chart-grid">
-          <div class="chart-row">
-            <div class="severity-label">Critical</div>
-            <div class="bar-container">
-              <div class="bar critical" style="width: ${getBarWidth(critical)}%"></div>
-            </div>
-            <div class="count-badge">${critical}</div>
-          </div>
-          <div class="chart-row">
-            <div class="severity-label">High</div>
-            <div class="bar-container">
-              <div class="bar high" style="width: ${getBarWidth(high)}%"></div>
-            </div>
-            <div class="count-badge">${high}</div>
-          </div>
-          <div class="chart-row">
-            <div class="severity-label">Medium</div>
-            <div class="bar-container">
-              <div class="bar medium" style="width: ${getBarWidth(medium)}%"></div>
-            </div>
-            <div class="count-badge">${medium}</div>
-          </div>
-          <div class="chart-row">
-            <div class="severity-label">Low</div>
-            <div class="bar-container">
-              <div class="bar low" style="width: ${getBarWidth(low)}%"></div>
-            </div>
-            <div class="count-badge">${low}</div>
-          </div>
-          <div class="chart-row">
-            <div class="severity-label">Info</div>
-            <div class="bar-container">
-              <div class="bar info" style="width: ${getBarWidth(info)}%"></div>
-            </div>
-            <div class="count-badge">${info}</div>
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  private addSeverityClasses(html: string, critical: number, high: number, medium: number, low: number, info: number, total: number): string {
+  private addSeverityClasses(html: string): string {
     // Add severity classes for styling
     let processedHTML = html;
     
@@ -656,13 +488,6 @@ export class PDFGenerator {
             const className = `severity-${severity.toLowerCase()}`;
             return `<strong>Severity:</strong> <span class="${className}">${severity}</span>`;
         }
-    );
-    
-    // Insert summary chart after Executive Summary heading
-    const chart = this.generateSummaryChart(critical, high, medium, low, info, total);
-    processedHTML = processedHTML.replace(
-      /(<h2[^>]*>Executive Summary<\/h2>)/i,
-      `$1\n${chart}`
     );
     
     return processedHTML;

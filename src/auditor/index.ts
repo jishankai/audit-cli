@@ -108,7 +108,7 @@ ${analyzerResults.allDetectors.length} issue(s)
 Provide:
 1. Executive Summary of Security Posture
 2. High-Level Risk Assessment
-3. Key systemic issues observed (if any)
+3. Key Systemic Issues Observed (if any)
 4. Strategic Recommendations for the project
 5. Conclusion`;
 
@@ -363,11 +363,11 @@ TOTAL ISSUES DETECTED:
 ${analyzerResults.allDetectors.length}
 
 Provide:
-1. Overall security assessment
-2. Code quality review
-3. Best practices evaluation
-4. Recommendations for improvement
-5. Summary of key concerns`;
+1. Overall Security Assessment
+2. Code Quality Review
+3. Best Practices Evaluation
+4. Recommendations for Improvement
+5. Summary of Key Concerns`;
 
     try {
       return await this.callAI(prompt, 8000);
