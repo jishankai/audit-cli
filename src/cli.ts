@@ -121,9 +121,9 @@ export class InteractiveCLI {
         name: 'reportFormats',
         message: 'Select report formats (Space to select, Enter to confirm):',
         choices: [
+          { name: 'PDF (.pdf)', value: ReportFormat.PDF, checked: true },
           { name: 'Markdown (.md)', value: ReportFormat.MARKDOWN, checked: false },
-          { name: 'JSON (.json)', value: ReportFormat.JSON, checked: false },
-          { name: 'PDF (.pdf)', value: ReportFormat.PDF, checked: true }
+          { name: 'JSON (.json)', value: ReportFormat.JSON, checked: false }
         ],
         validate: (input: ReportFormat[]) => {
           if (input.length === 0) {
@@ -164,7 +164,7 @@ export class InteractiveCLI {
     const infoBox = boxen(
       chalk.white.bold('Smart Contract Security Audit Tool\n\n') +
       chalk.gray('🔍 Multi-Tool Static Analysis: ') + chalk.cyan('Slither + Mythril\n') +
-      chalk.gray('🤖 AI-Powered Analysis: ') + chalk.cyan('GPT-4 / Claude Sonnet\n') +
+      chalk.gray('🤖 AI-Powered Analysis: ') + chalk.cyan('GPT / Claude\n') +
       chalk.gray('📊 42 Vulnerability Types\n') +
       chalk.gray('📝 Multiple Report Formats'),
       {
@@ -216,10 +216,9 @@ export class InteractiveCLI {
       [chalk.cyan('Vulnerability Checks'), chalk.green(`${config.vulnerabilityChecks.length} types`)],
       [chalk.cyan('Report Formats'), config.reportFormats?.map(f => {
         const icons: Record<string, string> = {
-          'markdown': '📝',
-          'json': '📊', 
           'pdf': '📄',
-          'all': '📚'
+          'markdown': '📝',
+          'json': '📊'
         };
         return icons[f] || '📄';
       }).join(' ') || '📝 📊'],
