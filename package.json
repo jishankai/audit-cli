@@ -1,7 +1,7 @@
 {
-  "name": "audit-cli",
+  "name": "@jishankai/audit-cli",
   "version": "1.0.0",
-  "description": "Smart contract security audit CLI tool using Slither and AI",
+  "description": "Smart contract security audit CLI tool using Slither, Mythril and AI",
   "main": "dist/index.js",
   "bin": {
     "audit-cli": "./dist/index.js"
