@@ -95,6 +95,20 @@ An AI-powered smart contract security audit tool that combines multiple static a
 
 ## Installation
 
+### Option 1 (Recommended): Install from npm
+
+```bash
+npm install -g @jishankai/audit-cli
+```
+
+After installation, you can run the CLI from anywhere:
+
+```bash
+audit-cli
+```
+
+### Option 2: Install from source (development)
+
 ```bash
 # Clone the repository
 git clone <repository-url>
@@ -105,15 +119,19 @@ npm install
 
 # Build the project
 npm run build
-
-# Set up environment variables
-cp .env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
 ```
 
 ## Usage
 
 ### Interactive Mode (Recommended)
+
+If installed globally:
+
+```bash
+audit-cli
+```
+
+If running from source:
 
 ```bash
 npm start
@@ -151,10 +169,21 @@ export OPENAI_MODEL=gpt-5.2
 export ANTHROPIC_MODEL=claude-3-opus-20240229
 ```
 
-**Create `.env` file for convenience:**
+**Using a `.env` file (optional):**
+
+The CLI reads configuration from environment variables (`process.env`). It does **not** automatically load a `.env` file.
+
+For local development, you can still keep a `.env` file and load it in your shell before running the CLI:
+
 ```bash
 cp .env.example .env
 # Edit .env with your API keys
+
+set -a
+source .env
+set +a
+
+audit-cli
 ```
 
 **Available Models:**
@@ -167,8 +196,10 @@ cp .env.example .env
 
 1. Start the audit tool:
    ```bash
-   npm start
+   audit-cli
    ```
+
+   (If running from source: `npm start`)
 
 2. Select source type: `GitHub Repository` or `Local Directory/File`
 
